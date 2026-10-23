@@ -20,12 +20,69 @@ const CONFIG_AC = {
     'Concluído', 'Negado', 'Revogado', 'Cancelado'],
   SISTEMAS: ['E-mail / Google Workspace', 'Rede / VPN', 'Jira', 'Confluence', 'Fluig', 'Protheus (ambiente de desenvolvimento)',
     'TFS / Azure DevOps', 'GitHub / Bitbucket', 'Teams / Slack'],
-  DIAS_AVISO_FIM: 15
+  DIAS_AVISO_FIM: 15,
+  // Checklist do líder no Horacius: perfis que todo terceiro precisa. Editável na aba 'Perfis_Acesso'.
+  ABA_PERFIS: 'Perfis_Acesso',
+  PERFIS_PADRAO: [
+    ['Protheus', 'RDO - Perfil de pagamento - Terceiros'],
+    ['Active Directory SP01', 'Conta de Rede EXT TOTVS (SP01)'],
+    ['Active Directory SP01', 'ColaboradoresIdentityGsuitesEXTSP'],
+    ['Active Directory SP01', 'SP.Genetec.EXT'],
+    ['Active Directory SP01', 'mfa.identity.mandatory.sp.ext'],
+    ['Active Directory SP01', 'Proxy-Geral'],
+    ['Active Directory SP01', 'VPN-ACESSO-PADRAO'],
+    ['Active Directory SP01', 'TOTVS-JIRA'],
+    ['Active Directory SP01', 'SQUAD.Fiscal'],
+    ['Active Directory SP01', 'TOTVS.TDN.MP.EDITORES'],
+    ['Active Directory SP01', 'TOTVS.TDN.MP.EDITORES_DOC'],
+    ['Active Directory SP01', 'TOTVS.TDN.TAF.TAF.SQA.CRIA'],
+    ['Active Directory SP01', 'TOTVS.TDN.TAF.TAF.INOV.CRIA'],
+    ['Active Directory SP01', 'TOTVS.TDN.TAF.TAF.MANUT.CRIA'],
+    ['Active Directory totvspartners', 'TerceirosIdentityGsuitesTP'],
+    ['Active Directory totvspartners', 'JIRA.TOTVSPARTNERS.BASICO'],
+    ['PSA Dynamics', 'Contato'],
+    ['PSA Dynamics', 'Contato (Recurso Reservável)'],
+    ['PSA Dynamics', 'Unidade Organizacional RMO TERCEIROS - CONTATOS'],
+    ['Universidade - Automático', 'TERCEIROS']
+  ]
 };
+
+const COLS_PERFIS = ['Ativo', 'Perfil', 'Usar no checklist (Sim/Não)', 'Time (vazio = todos)'];
+
+/** Aba com a lista de perfis do terceiro; criada com a lista padrão na primeira vez. */
+function abaPerfisAcesso_() {
+  const ss = planilha_();
+  let aba = ss.getSheetByName(CONFIG_AC.ABA_PERFIS);
+  if (aba) return aba;
+  aba = ss.insertSheet(CONFIG_AC.ABA_PERFIS);
+  aba.getRange(1, 1, 1, COLS_PERFIS.length).setValues([COLS_PERFIS])
+    .setFontWeight('bold').setBackground('#1f4e78').setFontColor('#ffffff');
+  const linhas = CONFIG_AC.PERFIS_PADRAO.map(p => [p[0], p[1], 'Sim', '']);
+  aba.getRange(2, 1, linhas.length, COLS_PERFIS.length).setValues(linhas);
+  aba.getRange(2, 3, Math.max(aba.getMaxRows() - 1, 1), 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(['Sim', 'Não'], true).build());
+  aba.setFrozenRows(1);
+  [230, 330, 130, 170].forEach((w, i) => aba.setColumnWidth(i + 1, w));
+  return aba;
+}
+
+/** Perfis do checklist do Horacius para um time: [{ativo, perfil, chave:'Ativo: Perfil'}]. */
+function perfisAcesso_(time) {
+  const aba = abaPerfisAcesso_();
+  if (aba.getLastRow() < 2) return [];
+  const norm = v => String(v || '').trim().toLowerCase();
+  return aba.getRange(2, 1, aba.getLastRow() - 1, COLS_PERFIS.length).getDisplayValues()
+    .filter(r => String(r[0]).trim() && String(r[1]).trim())
+    .filter(r => !String(r[3]).trim() || !time || time === TODOS_TIMES ||
+      String(r[3]).split(/\s*[,;]\s*/).some(t => norm(t) === norm(time)))
+    .filter(r => !/^n/i.test(String(r[2]).trim()))
+    .map(r => ({ ativo: String(r[0]).trim(), perfil: String(r[1]).trim(),
+      chave: String(r[0]).trim() + ': ' + String(r[1]).trim() }));
+}
 
 const COLS_AC = ['ID', 'Criado em', 'Solicitante', 'Recurso', 'Código Recurso (PSA)', 'E-mail do Recurso', 'Consultoria',
   'Código Projeto (PSA)', 'Projeto', 'Squad', 'Período De', 'Período Até', 'Acessos', 'Justificativa',
-  'Nº Chamado', 'Status', 'Observações', 'Issue Agenda', 'Última atualização', 'Time'];
+  'Nº Chamado', 'Status', 'Observações', 'Issue Agenda', 'Última atualização', 'Time', 'Perfis Horacius'];
 const C_AC = {}; COLS_AC.forEach((n, i) => C_AC[n] = i + 1);
 
 function abaAcessos_() {
@@ -132,11 +189,12 @@ function obterDadosAcessos(timeSel) {
   const esc = escopoTime_(timeSel);
   const base = {
     time: esc.time, podeVerTodos: esc.podeVerTodos, times: listaTimes_(), meuTime: esc.perfil.time,
-    linhas: [], statusOpcoes: CONFIG_AC.STATUS, sistemas: CONFIG_AC.SISTEMAS, diasAviso: CONFIG_AC.DIAS_AVISO_FIM,
+    linhas: [], statusOpcoes: CONFIG_AC.STATUS, sistemas: CONFIG_AC.SISTEMAS, perfis: [], diasAviso: CONFIG_AC.DIAS_AVISO_FIM,
     urlPortal: PropertiesService.getScriptProperties().getProperty('URL_PORTAL_ACESSOS') || CONFIG_AC.URL_PORTAL,
     urlTicket: CONFIG_AC.URL_TICKET, urlHoracius: CONFIG_AC.URL_HORACIUS, jiraUrl: CONFIG.JIRA_BASE_URL, solicitante: ''
   };
   try { base.solicitante = Session.getActiveUser().getEmail() || ''; } catch (e) {}
+  try { base.perfis = perfisAcesso_(esc.perfil.time || esc.time); } catch (e) { base.erroPerfis = e.message; }
   const aba = ss.getSheetByName(CONFIG_AC.ABA) ? abaAcessos_() : null;
   if (!aba || aba.getLastRow() < 2) return base;
 
@@ -153,7 +211,7 @@ function obterDadosAcessos(timeSel) {
       de: g('Período De'), ate: g('Período Até'), ateTs: ate instanceof Date ? ate.getTime() : 0,
       acessos: g('Acessos'), justificativa: g('Justificativa'), chamado: g('Nº Chamado'), status: g('Status'),
       obs: g('Observações'), issue: g('Issue Agenda'), atualizado: g('Última atualização'),
-      time: g('Time') || timeDoUsuario_(g('Solicitante'))
+      time: g('Time') || timeDoUsuario_(g('Solicitante')), perfisHoracius: g('Perfis Horacius')
     };
   }).filter(l => l.id && esc.filtro(l.time));
   return base;
@@ -191,6 +249,7 @@ function salvarSolicitacaoAcesso(d) {
     set('Observações', linha ? aba.getRange(linha, C_AC['Observações']).getValue() : (d.obs || ''));
     set('Issue Agenda', d.issue ? `=HYPERLINK("${CONFIG.JIRA_BASE_URL}/browse/${d.issue}"; "${d.issue}")` : '');
     set('Última atualização', new Date());
+    set('Perfis Horacius', (d.perfisHoracius || []).join(', '));
     set('Time', linha ? (aba.getRange(linha, C_AC['Time']).getValue() || perfil_().time) : perfil_().time);
 
     if (!linha) linha = aba.getLastRow() + 1;
@@ -203,7 +262,7 @@ function salvarSolicitacaoAcesso(d) {
 
 /** Edição rápida pela lista (status, nº do chamado, observações). */
 function alterarCampoAcesso(id, campo, valor) {
-  const editaveis = ['Status', 'Nº Chamado', 'Observações'];
+  const editaveis = ['Status', 'Nº Chamado', 'Observações', 'Perfis Horacius'];
   if (editaveis.indexOf(campo) === -1) throw new Error('Campo não editável: ' + campo);
   const aba = abaAcessos_();
   const linha = linhaAcesso_(aba, id);

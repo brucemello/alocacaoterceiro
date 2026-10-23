@@ -35,6 +35,18 @@
     .checks { display:grid; grid-template-columns: repeat(4, 1fr); gap:5px 12px; background:#f7faff; border:1px solid #deebff; border-radius:4px; padding:8px 10px; }
     .checks label { display:flex; gap:6px; align-items:center; font-size:12px; }
     .checks input { width:auto; }
+    .perfis { background:#f7faff; border:1px solid #deebff; border-radius:4px; padding:8px 10px; columns:2 340px; column-gap:18px; }
+    .perfis .grupo { break-inside:avoid; margin-bottom:8px; }
+    .perfis .grupo b { display:flex; gap:6px; align-items:center; font-size:11px; color:var(--azul); text-transform:uppercase; margin-bottom:3px; }
+    .perfis .grupo b input, .perfis label input { width:auto; }
+    .perfis label { display:flex; gap:6px; align-items:center; font-size:12px; padding:1px 0 1px 4px; font-family:Consolas, monospace; }
+    .barra-perfis { display:flex; gap:6px; align-items:center; margin:4px 0 6px; flex-wrap:wrap; font-size:11px; color:var(--cinza); }
+    .barra-perfis button { padding:4px 9px; font-size:11px; }
+    .dica-horacius { font-size:12px; color:#42526e; background:#fff7e6; border:1px solid #ffe2b3; border-radius:4px; padding:6px 10px; margin-bottom:4px; }
+    .perfis label.ok span.nome { text-decoration:line-through; color:#6b778c; }
+    .perfis span.nome { cursor:copy; } .perfis span.nome:hover { color:var(--azul2); text-decoration:underline; }
+    .prog-h { display:inline-block; margin-top:4px; font-size:11px; padding:1px 7px; border-radius:9px; background:#fff7e6; color:#974f0c; }
+    .prog-h.tudo { background:#e3fcef; color:#006644; }
     .texto { background:#f4f5f7; border:1px solid var(--borda); border-radius:4px; padding:10px; white-space:pre-wrap; font-family:Consolas, monospace; font-size:12px; max-height:240px; overflow:auto; }
     .linha { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
     .linha input { flex:1; min-width:180px; }
@@ -103,7 +115,20 @@
       <button class="portal" onclick="abrirPortal()">🔗 Abrir formulário no portal de suporte</button>
     </div>
 
-    <div class="passo">3 · Registrar o chamado</div>
+    <div class="passo">3 · No Horacius: perfis do terceiro</div>
+    <div class="dica-horacius">Quando o chamado chegar em <b>Liberar no Horacius</b>, abra o Horacius e solicite estes perfis para o analista.
+      Clique no nome para copiar e marque cada um que já pediu (fica salvo na solicitação).</div>
+    <div class="barra-perfis">
+      <button class="horacius" onclick="abrirHoracius()">🔐 Abrir Horacius</button>
+      <button class="secundario" onclick="copiarListaPerfis()">📋 Copiar lista</button>
+      <button class="secundario" onclick="marcarPerfis('todos')">Marcar todos</button>
+      <button class="secundario" onclick="marcarPerfis('nenhum')">Limpar</button>
+      <span id="contPerfis"></span>
+      <span>· para mudar a lista, edite a aba <b>Perfis_Acesso</b> da planilha</span>
+    </div>
+    <div class="perfis" id="perfis"></div>
+
+    <div class="passo">4 · Registrar o chamado</div>
     <div class="linha">
       <input id="chamado" placeholder="Nº do chamado aberto no portal (ex.: 3107383 ou o link) — pode informar depois">
       <button class="primario" id="btnSalvar" onclick="salvar()">💾 Salvar solicitação</button>
@@ -148,6 +173,7 @@
       DADOS = d;
       montarSeletorTime(d);
       if (!$('checks').children.length) {
+        montarPerfis(d.perfis || []);
         $('checks').innerHTML = d.sistemas.map(s => `<label><input type="checkbox" value="${esc(s)}"> ${esc(s)}</label>`).join('');
         $('fStatus').innerHTML = '<option value="">Todos os status</option>' + d.statusOpcoes.map(s => `<option>${esc(s)}</option>`).join('');
       }
@@ -195,6 +221,7 @@
     ['recurso', 'codigoRecurso', 'email', 'consultoria', 'codigoProjeto', 'projeto', 'squad', 'de', 'ate', 'issue', 'outros', 'justificativa', 'chamado']
       .forEach(k => $(k).value = '');
     document.querySelectorAll('#checks input').forEach(c => c.checked = false);
+    marcarPerfis('nenhum', true);
     $('selRecurso').value = '';
     $('btnSalvar').textContent = '💾 Salvar solicitação';
     $('card').classList.add('on');
@@ -214,6 +241,9 @@
     $('justificativa').value = l.justificativa; $('chamado').value = l.chamado;
     const marcados = l.acessos.split(/\s*,\s*/).filter(Boolean);
     document.querySelectorAll('#checks input').forEach(c => c.checked = marcados.indexOf(c.value) !== -1);
+    const pedidos = String(l.perfisHoracius || '').split(/\s*,\s*/).filter(Boolean);
+    document.querySelectorAll('#perfis input[data-chave]').forEach(c => c.checked = pedidos.indexOf(c.value) !== -1);
+    atualizarGruposPerfis();
     $('outros').value = marcados.filter(m => DADOS.sistemas.indexOf(m) === -1 && !/horacius/i.test(m)).join(', ');
     $('btnSalvar').textContent = '💾 Salvar alterações';
     $('card').classList.add('on');
@@ -221,9 +251,84 @@
     $('card').scrollIntoView({ behavior: 'smooth' });
   }
 
-  function acessosMarcados() {
+  /** Coluna Acessos (vai no chamado): complementares + outros. Os perfis do Horacius ficam à parte. */
+  function acessosMarcados() { return complementaresMarcados(); }
+  function perfisMarcados() {
+    return Array.from(document.querySelectorAll('#perfis input[data-chave]:checked')).map(c => c.value);
+  }
+  function complementaresMarcados() {
     const lista = Array.from(document.querySelectorAll('#checks input:checked')).map(c => c.value);
     return lista.concat($('outros').value.split(/\s*,\s*/).map(s => s.trim()).filter(Boolean));
+  }
+
+  // ---------- perfis do terceiro (agrupados por ativo) ----------
+  function montarPerfis(lista) {
+    const grupos = [];
+    lista.forEach(p => {
+      let g = grupos.find(x => x.ativo === p.ativo);
+      if (!g) grupos.push(g = { ativo: p.ativo, itens: [] });
+      g.itens.push(p);
+    });
+    $('perfis').innerHTML = grupos.length ? grupos.map((g, gi) => `<div class="grupo">
+        <b><input type="checkbox" data-grupo="${gi}" onchange="marcarGrupo(${gi}, this.checked)"> ${esc(g.ativo)}</b>
+        ${g.itens.map(p => `<label><input type="checkbox" data-chave="1" data-g="${gi}" value="${esc(p.chave)}"
+          onchange="perfilMudou()"> <span class="nome" title="Clique para copiar" onclick="event.preventDefault(); copiarTexto(this.textContent, 'Perfil copiado: cole na busca do Horacius.')">${esc(p.perfil)}</span></label>`).join('')}</div>`).join('')
+      : '<span style="color:#6b778c">Nenhum perfil cadastrado na aba Perfis_Acesso.</span>';
+    marcarPerfis('nenhum', true);
+  }
+  function marcarPerfis(modo, semSalvar) {
+    document.querySelectorAll('#perfis input[data-chave]').forEach(c => c.checked = modo === 'todos');
+    atualizarGruposPerfis();
+    if (!semSalvar) salvarPerfisHoracius();
+  }
+  function marcarGrupo(gi, on) {
+    document.querySelectorAll(`#perfis input[data-g="${gi}"]`).forEach(c => c.checked = on);
+    perfilMudou();
+  }
+  function perfilMudou() { atualizarGruposPerfis(); salvarPerfisHoracius(); }
+
+  /** Em uma solicitação já salva, cada marcação é gravada na hora. */
+  let timerPerfis = null;
+  function salvarPerfisHoracius() {
+    if (!editandoId) return;
+    clearTimeout(timerPerfis);
+    const id = editandoId, valor = perfisMarcados().join(', ');
+    timerPerfis = setTimeout(() => google.script.run
+      .withSuccessHandler(() => { const l = DADOS.linhas.find(x => x.id === id); if (l) { l.perfisHoracius = valor; render(); } })
+      .withFailureHandler(e => mostrarMsg('❌ Não consegui salvar o checklist: ' + esc(e.message), 'erro'))
+      .alterarCampoAcesso(id, 'Perfis Horacius', valor), 600);
+  }
+  function copiarTexto(v, msg) {
+    const ok = () => mostrarMsg('📋 ' + msg, 'ok');
+    const fallback = () => {
+      const t = document.createElement('textarea'); t.value = v; document.body.appendChild(t); t.select();
+      try { document.execCommand('copy'); ok(); } catch (e) { mostrarMsg('Não consegui copiar.', 'erro'); }
+      t.remove();
+    };
+    try { navigator.clipboard.writeText(v).then(ok, fallback); } catch (e) { fallback(); }
+  }
+  function copiarListaPerfis() {
+    const pend = Array.from(document.querySelectorAll('#perfis input[data-chave]')).filter(c => !c.checked).map(c => c.value);
+    const lista = (pend.length ? pend : perfisMarcados());
+    copiarTexto(`Perfis para ${$('recurso').value.trim() || 'o analista'}:\n` + lista.map(k => '- ' + k).join('\n'),
+      pend.length ? `${pend.length} perfil(is) pendente(s) copiado(s).` : 'Lista copiada.');
+  }
+  /** "x/y" dos perfis já pedidos no Horacius, para a lista. */
+  function progressoHoracius(l) {
+    const total = (DADOS.perfis || []).length;
+    if (!total) return '';
+    const feitos = String(l.perfisHoracius || '').split(/\s*,\s*/).filter(k => (DADOS.perfis || []).some(p => p.chave === k)).length;
+    return `<span class="prog-h${feitos === total ? ' tudo' : ''}" title="Perfis já solicitados no Horacius">🔐 Horacius ${feitos}/${total}</span>`;
+  }
+  function atualizarGruposPerfis() {
+    const todos = document.querySelectorAll('#perfis input[data-chave]');
+    document.querySelectorAll('#perfis input[data-grupo]').forEach(g => {
+      const itens = Array.from(document.querySelectorAll(`#perfis input[data-g="${g.dataset.grupo}"]`));
+      const n = itens.filter(c => c.checked).length;
+      g.checked = n === itens.length; g.indeterminate = n > 0 && n < itens.length;
+    });
+    document.querySelectorAll('#perfis input[data-chave]').forEach(c => c.parentNode.classList.toggle('ok', c.checked));
+    $('contPerfis').textContent = `${Array.from(todos).filter(c => c.checked).length} de ${todos.length} já solicitados`;
   }
 
   function justificativaPadrao() {
@@ -246,7 +351,7 @@
     const proj = [$('codigoProjeto').value.toUpperCase(), $('projeto').value].filter(Boolean).join(' - ');
     const issue = $('issue').value.trim().toUpperCase();
     const squad = $('squad').value.trim();
-    const acessos = acessosMarcados();
+    const acessos = complementaresMarcados();
     const se = (v, t) => (v ? t : null);       // linha opcional: só entra se houver valor
 
     TEXTO.assunto = `Inclusão de analista terceiro na estrutura do Horacius - ${nome}`;
@@ -286,6 +391,11 @@
     try { navigator.clipboard.writeText(v).then(ok, fallback); } catch (e) { fallback(); }
   }
 
+  function abrirChecklist(id) {
+    editar(id);
+    setTimeout(() => $('perfis').scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+    abrirHoracius();
+  }
   function abrirHoracius() {
     if (DADOS.urlHoracius) window.open(DADOS.urlHoracius, '_blank');
     mostrarMsg('🔐 Horacius aberto em nova guia. Depois de liberar, mude o status para <b>Horacius liberado</b>.', 'info');
@@ -302,7 +412,7 @@
       consultoria: $('consultoria').value, codigoProjeto: $('codigoProjeto').value, projeto: $('projeto').value,
       squad: $('squad').value, de: $('de').value, ate: $('ate').value, issue: $('issue').value.trim().toUpperCase(),
       acessos: ['Inclusão na estrutura do Horacius'].concat(acessosMarcados()), justificativa: $('justificativa').value.trim(),
-      chamado: $('chamado').value
+      chamado: $('chamado').value, perfisHoracius: perfisMarcados()
     };
     $('btnSalvar').disabled = true;
     google.script.run.withSuccessHandler(r => {
@@ -368,11 +478,11 @@
         <td style="min-width:180px"><b>${esc(l.recurso)}</b><div class="sub">${esc(l.email)}${l.consultoria ? ' · ' + esc(l.consultoria) : ''}</div></td>
         <td style="min-width:220px">${esc(l.projeto)}<div class="sub">${esc(l.codigoProjeto)}${l.squad ? ' · ' + esc(l.squad) : ''}${l.issue ? ` · <a href="${DADOS.jiraUrl}/browse/${esc(l.issue)}">${esc(l.issue)}</a>` : ''}</div></td>
         <td style="white-space:nowrap">${esc(l.de)}${l.ate ? ' → ' + esc(l.ate) : ''}${aviso}</td>
-        <td style="min-width:200px">${esc(l.acessos)}</td>
+        <td style="min-width:200px">${esc(l.acessos)}<div>${progressoHoracius(l)}</div></td>
         <td style="min-width:120px">${l.chamado ? `<a href="${DADOS.urlTicket}${esc(l.chamado)}">#${esc(l.chamado)}</a>` : ''}
           <input data-id="${esc(l.id)}" data-c="Nº Chamado" value="${esc(l.chamado)}" placeholder="nº do chamado" style="margin-top:3px"></td>
         <td style="min-width:160px"><select data-id="${esc(l.id)}" data-c="Status">${opts}</select>
-          ${l.status === 'Liberar no Horacius' ? `<button class="horacius mini st-horacius" onclick="abrirHoracius()">🔐 Abrir Horacius</button>` : ''}</td>
+          ${l.status === 'Liberar no Horacius' ? `<button class="horacius mini st-horacius" onclick="abrirChecklist('${esc(l.id)}')">🔐 Abrir Horacius + checklist</button>` : ''}</td>
         <td style="min-width:200px"><input data-id="${esc(l.id)}" data-c="Observações" value="${esc(l.obs)}"></td>
         <td style="white-space:nowrap">${esc(l.criadoEm.split(' ')[0])}<div class="sub">${esc(l.solicitante)}</div></td>
       </tr>`;
