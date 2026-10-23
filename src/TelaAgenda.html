@@ -63,6 +63,9 @@
     .feriados-opc { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; margin-top:5px; font-size:12px; }
     .feriados-opc label { display:flex; gap:5px; align-items:center; font-weight:normal; }
     .feriados-opc input[type=checkbox] { width:auto; }
+    .clone { display:none; margin-top:10px; padding:10px 12px; border:2px solid #4c9aff; background:#f0f6ff; border-radius:6px; font-size:12px; }
+    .clone.on { display:block; }
+    .revisar input, input.revisar, textarea.revisar { background:#fffae6 !important; border-color:#ffab00 !important; }
     .edicao { display:none; margin-top:10px; padding:10px 12px; border:2px solid #ffab00; background:#fffae6; border-radius:6px; }
     .edicao.on { display:block; }
     .edicao a { color:#0052cc; }
@@ -95,6 +98,8 @@
     <button class="secundario mini" onclick="novoFormulario()">Novo</button>
     <span id="statusRascunho" class="dica"></span>
   </div>
+
+  <div class="clone" id="boxClone"></div>
 
   <div class="edicao" id="boxEdicao">
     <div><b>✏️ Editando a issue <a id="linkEdicao" href="#" target="_blank"></a></b>
@@ -225,7 +230,7 @@
 <script>
   const $ = id => document.getElementById(id);
   var PROJETOS = {};   // projetos do Controle para os combos
-  var issueEditando = '', RASCUNHOS = [], editarPendente = '';
+  var issueEditando = '', RASCUNHOS = [], editarPendente = '', clonarPendente = '';
   var CFG = null, rascunhoId = '', alterado = false, tipoDesejado = '', camposDesejados = {}, defsCamposProjeto = [];
   const CAMPOS_TEXTO = ['projetoJira', 'epico', 'codigoRecurso', 'nomeRecurso', 'codigoProjeto', 'nomeProjeto',
     'consultoria', 'squad', 'valorHora', 'papel', 'dataDe', 'dataAte', 'email', 'naoAlocar', 'observacao',
@@ -350,6 +355,7 @@
     carregarListaRascunhos();
     carregarProjetosControle();
     if (editarPendente) { const k = editarPendente; editarPendente = ''; setTimeout(() => editarIssue(k), 0); }
+    if (clonarPendente) { const k = clonarPendente; clonarPendente = ''; setTimeout(() => clonarIssue(k), 0); }
     $('selProjeto').addEventListener('change', () => aplicarProjeto(PROJETOS[$('selProjeto').value]));
     $('codigoProjeto').addEventListener('change', () => {
       const p = Object.values(PROJETOS).find(x => x.codigo === $('codigoProjeto').value.trim().toUpperCase());
@@ -422,6 +428,7 @@
       if (!doForm(e)) return;
       invalidar(); marcarAlterado();
       const f = e.target.closest('.faltando'); if (f) f.classList.remove('faltando');
+      e.target.classList.remove('revisar');
       atualizarTitulo();
       if (e.target.closest('table, #mesesEsp') || ['dataDe', 'dataAte', 'naoAlocar', 'valorHora', 'horasDia'].indexOf(e.target.id) !== -1) recalcular();
     });
@@ -640,6 +647,7 @@
   // ---------- modo edição ----------
   function definirEdicao(key) {
     issueEditando = key || '';
+    if (issueEditando) { $('boxClone').classList.remove('on'); document.querySelectorAll('.revisar').forEach(e => e.classList.remove('revisar')); }
     $('boxEdicao').classList.toggle('on', !!issueEditando);
     if (issueEditando) {
       $('linkEdicao').textContent = issueEditando;
@@ -676,6 +684,35 @@
     }).withFailureHandler(e => mostrar('❌ ' + e.message, 'erro')).carregarAgendaParaEdicao(key);
   }
   window.addEventListener('message', ev => { if (ev.data && ev.data.__painel === 'editar') editarIssue(ev.data.issue); });
+  window.addEventListener('message', ev => { if (ev.data && ev.data.__painel === 'clonar') clonarIssue(ev.data.issue); });
+
+  // ---------- clonar (renovação): aproveita tudo, menos período / feriados / Tabela 02 ----------
+  function clonarIssue(key) {
+    key = String(key || '').trim().toUpperCase();
+    if (!key) return;
+    if (!CFG) { clonarPendente = key; return; }
+    if (alterado && !confirm(`Há alterações não salvas. Clonar ${key} mesmo assim?`)) return;
+    mostrar(`Carregando ${key} para clonar…`, 'info');
+    google.script.run.withSuccessHandler(r => {
+      if (r.tipo !== 'Agenda') return mostrar(`❌ ${key} é um ${r.tipo}: use o clonar na aba Projeto Interno.`, 'erro');
+      const d = Object.assign({}, r.dados, {
+        rascunhoId: '', epico: CFG.epicoPadrao || r.dados.epico || '',
+        dataDe: '', dataAte: '', naoAlocar: '', diasEspecificos: Array(12).fill(''), semDiasEspecificos: true,
+        meses: [], autoCalc: true, trazerFeriados: true, naoPreencherTabela02: !!r.dados.naoPreencherTabela02
+      });
+      preencher(d);
+      definirEdicao('');
+      rascunhoId = ''; $('selRascunho').value = ''; $('boxPrevia').style.display = 'none';
+      marcarAlterado();
+      ['dataDe', 'dataAte', 'valorHora', 'observacao'].forEach(id => $(id).classList.add('revisar'));
+      $('boxClone').innerHTML = `📄 <b>Clone de ${escHtml(key)}</b> — nova agenda (a original não muda). Informe o <b>novo período</b> (De/Até):
+        feriados e Tabela 02 são recalculados sozinhos. Confira também o <b>valor hora</b> e a <b>observação</b> (em amarelo).`;
+      $('boxClone').classList.add('on');
+      mostrar(`Dados de ${key} carregados${r.origem === 'jira' ? ' a partir da descrição no Jira (confira os campos)' : ''}. Informe o novo período.`, 'info');
+      window.scrollTo(0, 0);
+      $('dataDe').focus();
+    }).withFailureHandler(e => mostrar('❌ ' + escHtml(e.message), 'erro')).carregarParaClonar(key);
+  }
 
   function novoFormulario() {
     if (alterado && !confirm('Há alterações não salvas. Começar um formulário novo mesmo assim?')) return;
@@ -683,6 +720,7 @@
     rascunhoId = ''; alterado = false; $('selRascunho').value = ''; $('statusRascunho').textContent = '';
     $('boxPrevia').style.display = 'none'; $('msg').style.display = 'none';
     definirEdicao('');
+    $('boxClone').classList.remove('on'); document.querySelectorAll('.revisar').forEach(e => e.classList.remove('revisar'));
   }
 
   function fechar() {

@@ -52,6 +52,10 @@
     .rascunhos { display:flex; gap:8px; align-items:center; margin-top:10px; padding:8px 10px; background:#f4f5f7; border-radius:4px; }
     .rascunhos select { width:auto; flex:1; max-width:560px; }
     .salvar { background:#ffab00; color:#172b4d; }
+    .clone { display:none; margin-top:10px; padding:10px 12px; border:2px solid #4c9aff; background:#f0f6ff; border-radius:6px; font-size:12px; }
+    .clone.on { display:block; }
+    input.revisar, textarea.revisar { background:#fffae6 !important; border-color:#ffab00 !important; }
+    table.revisar { outline:2px solid #ffab00; outline-offset:2px; }
     .faltando { outline:2px solid #de350b; outline-offset:3px; border-radius:4px; background:#fff4f2; }
     .faltando > label { color:#bf2600; }
   </style>
@@ -60,6 +64,8 @@
   <h2>🏗️ Solicitação de Criação de Projeto Interno</h2>
   <div class="sub">Preencha só os campos azuis e verdes. Os campos fixos (vermelhos e laranjas) e o restante do layout do template são montados automaticamente na descrição da issue.</div>
   <div class="legenda"><span class="lg-az">AZUL · obrigatório</span><span class="lg-vd">VERDE · opcional (em branco se não houver)</span></div>
+
+  <div class="clone" id="boxClone"></div>
 
   <div class="rascunhos">
     <b>📂 Rascunhos:</b>
@@ -395,7 +401,39 @@
     }).withFailureHandler(e => mostrar('Erro: ' + e.message, 'erro')).carregarRascunhoPI(id);
   }
 
+  // ---------- clonar (renovação) ----------
+  window.addEventListener('message', ev => { if (ev.data && ev.data.__painel === 'clonar') clonarIssue(ev.data.issue); });
+  document.addEventListener('input', e => { if (e.target.classList) e.target.classList.remove('revisar'); });
+
+  function clonarIssue(key) {
+    key = String(key || '').trim().toUpperCase();
+    if (!key) return;
+    if (!CFG) { setTimeout(() => clonarIssue(key), 300); return; }   // formulário ainda carregando
+    if (alterado && !confirm(`Há alterações não salvas. Clonar ${key} mesmo assim?`)) return;
+    mostrar(`Carregando ${key} para clonar…`, 'info');
+    google.script.run.withSuccessHandler(r => {
+      if (r.tipo !== 'Projeto Interno') return mostrar(`❌ ${key} é uma ${r.tipo}: use o clonar da aba Agenda.`, 'erro');
+      const d = Object.assign({}, r.dados, {
+        rascunhoId: '', epico: CFG.epicoPadrao, dataInicio: '', dataFim: '', meses: [],
+        horasTotal: '', recursosTotal: '', valoresHora: [], autoCalc: true,
+        beneficio: Object.assign({}, r.dados.beneficio || {}, { dataInicio: '', dataFim: '' })
+      });
+      preencher(d);
+      rascunhoId = ''; $('selRascunho').value = ''; $('boxPrevia').style.display = 'none';
+      marcarAlterado();
+      ['nomeProjeto', 'dataInicio', 'dataFim'].forEach(id => $(id).classList.add('revisar'));
+      $('tabMeses').closest('table').classList.add('revisar');
+      $('boxClone').innerHTML = `📄 <b>Clone de ${key}</b> — novo Projeto Interno (o original não muda). Informe o <b>novo período</b> e,
+        na <b>Tabela 02</b>, recursos, dias e valor por mês. Confira o <b>nome do projeto</b> (ex.: semestre) — campos em amarelo.`;
+      $('boxClone').classList.add('on');
+      mostrar(`Dados de ${key} carregados${r.origem === 'jira' ? ' a partir da descrição no Jira (confira os campos)' : ''}.`, 'info');
+      window.scrollTo(0, 0);
+    }).withFailureHandler(e => mostrar('❌ ' + e.message, 'erro')).carregarParaClonar(key);
+  }
+
   function novoFormulario() {
+    $('boxClone').classList.remove('on');
+    document.querySelectorAll('.revisar').forEach(e => e.classList.remove('revisar'));
     if (alterado && !confirm('Há alterações não salvas. Começar um formulário novo mesmo assim?')) return;
     preencher({ projetoJira: CFG.projetoPadrao, epico: CFG.epicoPadrao, autoCalc: true });
     rascunhoId = ''; alterado = false;

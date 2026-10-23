@@ -138,7 +138,7 @@
         parent.postMessage({__painel:'call',aba:'__ABA__',id:id,fn:n,args:Array.prototype.slice.call(arguments)},'*');};}});}
     window.google={script:{run:runner(null,null,null),host:{
       close:function(){parent.postMessage({__painel:'close',aba:'__ABA__'},'*');},setHeight:function(){},setWidth:function(){}}}};
-    window.irParaAbaPainel=function(aba,extra){parent.postMessage({__painel:'tab',aba:'__ABA__',tab:aba,editar:extra&&extra.editar},'*');};
+    window.irParaAbaPainel=function(aba,extra){parent.postMessage({__painel:'tab',aba:'__ABA__',tab:aba,editar:extra&&extra.editar,clonar:extra&&extra.clonar},'*');};
   })();<\/script>`;
 
   window.addEventListener('message', ev => {
@@ -159,6 +159,7 @@
     } else if (m.__painel === 'tab') {
       mostrar(m.tab);
       if (m.editar) enviarParaTela(m.tab, { __painel: 'editar', issue: m.editar });
+      if (m.clonar) enviarParaTela(m.tab, { __painel: 'clonar', issue: m.clonar });
     }
   });
 

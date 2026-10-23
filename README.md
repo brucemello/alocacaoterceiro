@@ -13,6 +13,7 @@ Automação em Google Apps Script (planilha **Projeto Terceiro**) integrada ao J
 | 📅 **Agenda** | Formulário no layout do template `CIBKPRTH-7191`; dias úteis por mês (feriados nacionais e datas a não alocar); horas × valor hora |
 | 📊 **Controle** | Aba `Controle_Solicitacoes`: projeto, analista, valor hora, dias, horas, valor total, status do Jira, nº da solicitação (lido do comentário "Solicitação NNNNNNN iniciada com sucesso"), status de controle e observações |
 | 🔑 **Acessos** | Aba `Acessos_Terceiros`: escolhe o terceiro das Agendas, marca os acessos, gera o texto do chamado, abre o formulário do portal de suporte interno e acompanha nº do chamado, status e fim do período (aviso para revogar) |
+| 📄 **Clonar** | Na aba Controle, 📄 cria uma nova solicitação a partir de uma Agenda ou Projeto Interno existente (renovação): aproveita os dados e limpa período, feriados, Tabela 02 e totais |
 | 📥 **Importar** | Traz para o controle issues abertas por outras pessoas (por chave ou JQL), lendo os valores da descrição |
 | 💾 **Rascunhos** | Abas `Rascunhos_PI` e `Rascunhos_Agenda`, com salvamento automático |
 

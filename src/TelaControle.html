@@ -137,6 +137,11 @@
     }).withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).irParaAbaControle();
   }
 
+  function clonar(key, aba) {
+    if (window.irParaAbaPainel) window.irParaAbaPainel(aba, { clonar: key });
+    else mostrarMsg('Abra pelo painel (menu 🦇 → 🧭 Abrir Painel) para clonar.', 'info');
+  }
+
   function editarAgenda(key) {
     if (window.irParaAbaPainel) window.irParaAbaPainel('agenda', { editar: key });
     else mostrarMsg('Abra pelo painel (menu 🦇 → 🧭 Abrir Painel) para editar a agenda.', 'info');
@@ -282,7 +287,8 @@
       const statusOpts = (opc.indexOf(l.statusControle) === -1 && l.statusControle ? [l.statusControle] : []).concat(opc)
         .map(s => `<option${s === l.statusControle ? ' selected' : ''}>${esc(s)}</option>`).join('');
       return `<tr class="${cancelada(l) ? 'cancelado' : ''}">
-        <td>${l.tipo === 'Agenda' && !cancelada(l) ? `<button class="secundario mini" title="Editar esta agenda e atualizar a issue" onclick="editarAgenda('${esc(l.issue)}')">✏️</button>` : ''}</td>
+        <td style="white-space:nowrap">${l.tipo === 'Agenda' && !cancelada(l) ? `<button class="secundario mini" title="Editar esta agenda e atualizar a issue" onclick="editarAgenda('${esc(l.issue)}')">✏️</button>` : ''}
+          ${l.tipo === 'Agenda' || l.tipo === 'Projeto Interno' ? `<button class="secundario mini" title="Clonar: nova solicitação aproveitando os dados (muda período, recursos, dias e valor)" onclick="clonar('${esc(l.issue)}','${l.tipo === 'Agenda' ? 'agenda' : 'projeto'}')">📄</button>` : ''}</td>
         <td><span class="tipo ${cls}">${esc(l.tipo)}</span></td>
         <td><a href="${url}">${esc(l.issue)}</a><div class="sub">${esc(l.solicitante)}</div></td>
         <td>${esc(l.abertaEm.split(' ')[0])}</td>
