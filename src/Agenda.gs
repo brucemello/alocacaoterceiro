@@ -234,7 +234,7 @@ function montarDescricaoAgenda_(d) {
   L.push(`|      ${lj('*Issue (Subtarefa) / Data / Horas*')}|${String(d.crmSubtarefa || '').trim() ? lj(esc_(d.crmSubtarefa)) : ' '}|`);
 
   // Dias específicos: só os meses informados; em branco quando a alocação é sequencial (pedido do gestor)
-  const esp = d.diasEspecificos || [];
+  const esp = d.semDiasEspecificos ? [] : (d.diasEspecificos || []);
   const linhasMes = CONFIG_PI.MESES.map((m, i) => {
     const dias = String(esp[i] || '').trim();
     return dias ? '*' + vd(m) + '* ' + vd('- ' + esc_(dias)) : null;
@@ -257,9 +257,10 @@ function montarDescricaoAgenda_(d) {
     const x = (d.meses || [])[i] || {};
     const dias = num_(x.dias), horas = num_(x.horas), valor = horas * vh;
     tDias += dias; tHoras += horas; tValor += valor;
-    cDias.push(vd(fmtNum_(dias, 0)));
-    cHoras.push(vd(fmtNum_(horas, 0)));
-    cValor.push('*' + vd(fmtNum_(valor, 2)) + '*');
+    const vazio = d.mesesVaziosEmBranco !== false && !dias && !horas;   // mês sem alocação fica em branco
+    cDias.push(vazio ? ' ' : vd(fmtNum_(dias, 0)));
+    cHoras.push(vazio ? ' ' : vd(fmtNum_(horas, 0)));
+    cValor.push(vazio ? ' ' : '*' + vd(fmtNum_(valor, 2)) + '*');
   });
   L.push('|*Meses da alocação:*|' + CONFIG_PI.MESES.map(m => `*${m}*`).join('|') + '|*Total*|');
   L.push('|*Dias de alocação:*|' + cDias.join('|') + '|' + az(fmtNum_(tDias, 0)) + '|');
@@ -468,6 +469,9 @@ function lerAgendaDaDescricao_(desc) {
     const x = esp.match(r);
     if (x && /\d/.test(x[1])) d.diasEspecificos[i] = x[1].trim().replace(/,\s*$/, '');
   });
+
+  d.semDiasEspecificos = !d.diasEspecificos.some(Boolean);
+  d.mesesVaziosEmBranco = true;
 
   // Tabela 02: dias e horas por mês
   const linhaT = rot => t02.find(c => normRotulo_(c[0]).indexOf(rot) === 0);

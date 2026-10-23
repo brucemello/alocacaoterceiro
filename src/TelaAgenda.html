@@ -74,6 +74,9 @@
     .excecao .chk input { width:auto; }
     .alerta-topo { display:none; margin:10px 0 0; padding:9px 12px; border-radius:4px; background:#ffebe6; color:#bf2600; font-size:12px; }
     .alerta-topo.on { display:flex; gap:10px; align-items:center; justify-content:space-between; }
+    .chk-op { display:flex; gap:6px; align-items:center; margin-top:8px; font-size:12px; }
+    .chk-op input { width:auto; }
+    .meses-esp.desligado { opacity:.45; pointer-events:none; }
     .titulo-box { background:#fffae6; border:1px solid #ffe380; padding:7px 10px; border-radius:4px; margin-top:8px; font-size:12px; }
   </style>
 </head>
@@ -170,7 +173,9 @@
 
   <details id="boxEsp">
     <summary>Dias específicos a alocar <span style="font-weight:normal;color:#6b778c">— só para alocações em dias alternados</span></summary>
-    <div class="dica" style="margin-top:6px">Se a alocação for sequencial, deixe em branco (basta o período De/Até). Num mês preenchido aqui, só esses dias contam no cálculo.</div>
+    <label class="chk-op"><input type="checkbox" id="semDiasEspecificos" checked onchange="aplicarSemDias()">
+      <b>Não incluir dias específicos</b> (deixar em branco na issue — orientação do gestor para alocação sequencial)</label>
+    <div class="dica" style="margin-top:4px">Desmarque só se a alocação for em dias alternados. Num mês preenchido aqui, só esses dias contam no cálculo.</div>
     <div class="meses-esp" id="mesesEsp"></div>
   </details>
 
@@ -186,6 +191,7 @@
   <div class="opcoes-calc">
     <label><input type="checkbox" id="autoCalc" checked onchange="aplicarModoAuto()"> <b>Calcular automaticamente</b> pelo período De/Até</label>
     <label><input type="checkbox" id="descontarFeriados" checked onchange="recalcular()"> descontar feriados nacionais</label>
+    <label><input type="checkbox" id="mesesVaziosEmBranco" checked onchange="invalidar(); marcarAlterado()"> meses sem alocação em branco na issue (sem "0")</label>
     <label>Horas/dia: <input type="text" id="horasDia" value="8" inputmode="decimal"></label>
   </div>
   <div class="dica" id="dicaCalc" style="margin-bottom:6px"></div>
@@ -325,6 +331,7 @@
 
     $('mesesEsp').innerHTML = cfg.meses.map((m, i) =>
       `<div class="campo vd"><label>${m}</label><input data-esp="${i}" placeholder="DD, DD, DD"></div>`).join('');
+    aplicarSemDias(true);
     $('cabMeses').innerHTML = '<th>Meses da alocação</th>' + cfg.meses.map(m => `<th>${m}</th>`).join('') + '<th>Total</th>';
     $('linDias').innerHTML = '<td class="rot">Dias de alocação</td>' +
       cfg.meses.map((m, i) => `<td><input data-mes="${i}" data-c="dias" inputmode="numeric"></td>`).join('') + '<td class="tot" id="totDias">0</td>';
@@ -449,7 +456,7 @@
     const naoAlocar = new Set((($('naoAlocar').value || '').match(/\b(\d{1,2})\/(\d{1,2})\b/g) || [])
       .map(s => { const [d, m] = s.split('/'); return String(+m).padStart(2, '0') + '-' + String(+d).padStart(2, '0'); }));
     const especificos = {};
-    document.querySelectorAll('[data-esp]').forEach(el => {
+    if (!$('semDiasEspecificos').checked) document.querySelectorAll('[data-esp]').forEach(el => {
       const lista = (el.value.match(/\d{1,2}/g) || []).map(Number).filter(n => n >= 1 && n <= 31);
       if (lista.length) especificos[el.dataset.esp] = new Set(lista);
     });
@@ -548,7 +555,9 @@
       trazerFeriados: $('trazerFeriados').checked, incluirFacultativos: $('incluirFacultativos').checked,
       propostaExcecao: $('propostaExcecao').checked };
     CAMPOS_TEXTO.forEach(id => d[id] = $(id).value);
-    d.diasEspecificos = Array.from({ length: 12 }, (_, i) => document.querySelector(`[data-esp="${i}"]`).value);
+    d.semDiasEspecificos = $('semDiasEspecificos').checked;
+    d.mesesVaziosEmBranco = $('mesesVaziosEmBranco').checked;
+    d.diasEspecificos = Array.from({ length: 12 }, (_, i) => d.semDiasEspecificos ? '' : document.querySelector(`[data-esp="${i}"]`).value);
     d.meses = Array.from({ length: 12 }, (_, i) => ({ mes: CFG.meses[i], dias: inp(i, 'dias').value, horas: inp(i, 'horas').value }));
     return d;
   }
@@ -559,7 +568,11 @@
     if (!$('horasDia').value) $('horasDia').value = '8';
     (d.diasEspecificos || []).forEach((v, i) => { const el = document.querySelector(`[data-esp="${i}"]`); if (el) el.value = v || ''; });
     if (!(d.diasEspecificos || []).length) document.querySelectorAll('[data-esp]').forEach(el => el.value = '');
-    $('boxEsp').open = (d.diasEspecificos || []).some(v => String(v || '').trim());
+    const temDias = (d.diasEspecificos || []).some(v => String(v || '').trim());
+    $('semDiasEspecificos').checked = d.semDiasEspecificos !== undefined ? !!d.semDiasEspecificos : !temDias;
+    $('mesesVaziosEmBranco').checked = d.mesesVaziosEmBranco !== false;
+    $('boxEsp').open = temDias && !$('semDiasEspecificos').checked;
+    aplicarSemDias(true);
     $('boxCrm').open = !!(String(d.crmEpico || '').trim() || String(d.crmSubtarefa || '').trim());
     $('autoCalc').checked = d.autoCalc !== false;
     $('descontarFeriados').checked = d.descontarFeriados !== false;
@@ -697,6 +710,13 @@
     return defsCamposProjeto.filter(d => { const v = vals[d.id]; return Array.isArray(v) ? !v.length : !String(v || '').trim(); });
   }
 
+  function aplicarSemDias(silencioso) {
+    const sem = $('semDiasEspecificos').checked;
+    $('mesesEsp').classList.toggle('desligado', sem);
+    document.querySelectorAll('[data-esp]').forEach(el => el.disabled = sem);
+    if (!silencioso) { invalidar(); marcarAlterado(); recalcular(); }
+  }
+
   function toggleExcecao() { $('boxExcecao').style.display = $('propostaExcecao').checked ? 'grid' : 'none'; }
 
   /** Datas citadas (Não alocar, Observação, Dias específicos) que caem fora do período De/Até. */
@@ -717,7 +737,7 @@
     });
     checar($('naoAlocar').value, 'Não alocar');
     checar($('observacao').value, 'Observação');
-    document.querySelectorAll('[data-esp]').forEach(el => {
+    if (!$('semDiasEspecificos').checked) document.querySelectorAll('[data-esp]').forEach(el => {
       const mm = +el.dataset.esp + 1;
       (el.value.match(/\d{1,2}/g) || []).forEach(dd => {
         const d = quando(+dd, mm);
