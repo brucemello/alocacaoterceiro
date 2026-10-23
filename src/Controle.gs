@@ -413,13 +413,15 @@ function extrairInfoIssue_(issue) {
       if (!r.ultimaResposta && /atualizad|respond|conforme|aberto|encerrad|conclu/i.test(corpo)) {
         r.ultimaResposta = resumoRespostaTicket_(c);
       }
-    } else if (!r.numero) {
+    } else {
       const m = corpo.match(CONFIG_CT.REGEX_SOLICITACAO);
-      if (m) {
+      if (m && !r.numero) {
         r.numero = m[1];
         const urls = corpo.match(/https?:\/\/[^\s\]|"<>]+/g) || [];
-        r.link = urls.find(u => u.indexOf(r.numero) !== -1) || urls[0] || '';
+        r.link = urls.find(u => u.indexOf(r.numero) !== -1 && !/totvssign/i.test(u)) || urls[0] || '';
       }
+      // Comentário do Fluig (iniciada / movimentada / subprocesso / assinatura) também vale como "última resposta"
+      if (m && !r.ultimaResposta) r.ultimaResposta = resumoFluig_(c, m[1]);
     }
 
     if (!r.codigoPsa && /projeto/i.test(corpo)) {
@@ -428,6 +430,24 @@ function extrairInfoIssue_(issue) {
     }
   }
   return r;
+}
+
+/**
+ * Resumo do comentário do Fluig. Ex.:
+ * "23/10 14:22 · Fluig #5371050 movimentada · nova solicitação #5371151 (mit_workflow_tae) · assinatura: https://totvssign…"
+ */
+function resumoFluig_(c, numero) {
+  const t = limparTextoComentario_(c.body || '');
+  const quando = c.created ? Utilities.formatDate(new Date(c.created), Session.getScriptTimeZone(), 'dd/MM HH:mm') + ' · ' : '';
+  const acao = (t.match(/\b(iniciad[ao]|movimentad[ao]|finalizad[ao]|cancelad[ao]|aprovad[ao]|reprovad[ao]|conclu[ií]d[ao]|atualizad[ao]|encerrad[ao])\b/i) || [])[1] || 'atualizada';
+  const partes = [`Fluig #${numero} ${acao.toLowerCase()}`];
+  const bruto = String(c.body || '').replace(/\[([^\]|]*)\|[^\]]*\]/g, '$1').replace(/[*{}]/g, ' ').replace(/\s+/g, ' ');
+  const nova = bruto.match(/nova solicita[çc][ãa]o de n[úu]mero\s*#?(\d+)(?:\s*referente ao subprocesso\s*([\w.-]+))?/i);
+  if (nova) partes.push(`nova solicitação #${nova[1]}${nova[2] ? ' (' + nova[2] + ')' : ''}`);
+  const urls = String(c.body || '').match(/https?:\/\/[^\s\]|"<>]+/g) || [];
+  const assinatura = urls.find(u => /sign/i.test(u));
+  if (assinatura || /assinatura/i.test(t)) partes.push('assinatura' + (assinatura ? ': ' + assinatura : ' pendente'));
+  return (quando + partes.join(' · ')).substring(0, 300);
 }
 
 /** Texto da resposta do atendimento, sem marcação do Jira, resumido. */

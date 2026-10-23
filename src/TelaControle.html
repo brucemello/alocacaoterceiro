@@ -245,6 +245,11 @@
     return ordem.desc ? -r : r;
   }
 
+  /** Texto da última resposta: escapa e transforma endereços em links curtos. */
+  function linkificar(txt) {
+    return esc(txt).replace(/(https?:\/\/[^\s<]+)/g, u => `<a href="${u}">${/sign/i.test(u) ? 'abrir assinatura' : 'link'}</a>`);
+  }
+
   /** Na linha do Projeto: quanto já foi alocado em agendas. Na linha da Agenda: de qual projeto consome. */
   function usoProjeto(l) {
     if (cancelada(l)) return '';
@@ -291,7 +296,7 @@
         <td>${esc(l.statusJira)}</td>
         <td style="white-space:nowrap">${l.numSolic ? (l.linkSolic ? `<a href="${esc(l.linkSolic)}">#${esc(l.numSolic)}</a>` : '#' + esc(l.numSolic)) : '<span class="sub">—</span>'}
           ${l.ticket ? `<div class="sub">🎫 ${l.linkTicket ? `<a href="${esc(l.linkTicket)}">#${esc(l.ticket)}</a>` : '#' + esc(l.ticket)}${l.statusTicket ? ' · <b>' + esc(l.statusTicket) + '</b>' : ''}</div>` : ''}</td>
-        <td style="min-width:260px;max-width:340px">${l.ultimaResposta ? `<span title="${esc(l.ultimaResposta)}">${esc(l.ultimaResposta.length > 140 ? l.ultimaResposta.slice(0, 140) + '…' : l.ultimaResposta)}</span>` : '<span class="sub">—</span>'}</td>
+        <td style="min-width:260px;max-width:360px">${l.ultimaResposta ? `<span title="${esc(l.ultimaResposta)}">${linkificar(l.ultimaResposta)}</span>` : '<span class="sub">—</span>'}</td>
         <td style="min-width:170px"><select data-i="${esc(l.issue)}" data-c="Status Controle">${statusOpts}</select></td>
         <td style="min-width:200px"><input data-i="${esc(l.issue)}" data-c="Observações" value="${esc(l.obs)}"></td>
       </tr>`;
