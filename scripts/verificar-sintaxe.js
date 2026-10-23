@@ -28,6 +28,17 @@ arquivos.filter(f => f.endsWith('.html')).forEach(f => {
   blocos.forEach((js, i) => {
     try { new Function(js); }
     catch (e) { erros++; console.error(`✖ ${f} (script ${i + 1}): ${e.message}`); }
+    // O Apps Script trata "//" como comentário mesmo dentro de texto ('https://...') e corta a linha.
+    js.split('\n').forEach((l, n) => {
+      const idx = l.indexOf('//');
+      if (idx === -1 || l.slice(0, idx).trim() === '') return;
+      // tira os textos já fechados; se sobrar aspas abertas, o "//" está dentro de um texto
+      const antes = l.slice(0, idx).replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`/g, '');
+      if (/['"`]/.test(antes)) {
+        erros++;
+        console.error(`✖ ${f} (script ${i + 1}, linha ${n + 1}): "//" dentro de texto quebra no Apps Script → ${l.trim().slice(0, 100)}`);
+      }
+    });
   });
   console.log(`✔ ${f}: ${blocos.length} bloco(s) <script>`);
 });

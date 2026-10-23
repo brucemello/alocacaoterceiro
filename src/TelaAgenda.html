@@ -625,7 +625,7 @@
     $('boxEdicao').classList.toggle('on', !!issueEditando);
     if (issueEditando) {
       $('linkEdicao').textContent = issueEditando;
-      $('linkEdicao').href = (CFG.jiraUrl || 'https://jiraproducao.totvs.com.br') + '/browse/' + issueEditando;
+      $('linkEdicao').href = CFG.jiraUrl + '/browse/' + issueEditando;   // URL vem do servidor (sem barra dupla em texto)
     }
     ['projetoJira', 'tipoIssue', 'epico'].forEach(id => { $(id).disabled = !!issueEditando; });
     $('boxCamposProjeto').style.display = issueEditando ? 'none' : '';
