@@ -19,6 +19,10 @@
     .painel { position:absolute; inset:0; display:none; }
     .painel.ativo { display:block; }
     iframe { border:0; width:100%; height:100%; }
+    .erro-tela { position:absolute; top:0; left:0; right:0; z-index:5; background:#ffebe6; color:#bf2600; padding:8px 12px;
+      font-size:12px; border-bottom:2px solid #de350b; display:flex; gap:10px; align-items:center; }
+    .erro-tela code { flex:1; white-space:pre-wrap; }
+    .erro-tela button { border:none; background:#fff; border-radius:4px; padding:3px 8px; cursor:pointer; }
     .carregando { padding:40px; color:var(--cinza); text-align:center; }
 
     /* ---------- Configurações ---------- */
@@ -119,7 +123,10 @@
   let abaAtual = 'controle';
 
   // ---------- Ponte: as telas dentro do painel chamam o servidor por aqui ----------
-  const SHIM = `<script>(function(){
+  const SHIM = `<script>window.addEventListener('error',function(e){try{parent.postMessage({__painel:'erro',aba:'__ABA__',
+      msg:String(e.message||e)+(e.lineno?' (linha '+e.lineno+':'+e.colno+')':'')},'*');}catch(x){}});
+    window.addEventListener('unhandledrejection',function(e){try{parent.postMessage({__painel:'erro',aba:'__ABA__',msg:'Promise: '+String(e.reason)},'*');}catch(x){}});
+  <\/script><script>(function(){
     var seq=0,pend={};
     window.addEventListener('message',function(ev){var m=ev.data;if(!m||m.__painel!=='resp')return;var p=pend[m.id];if(!p)return;delete pend[m.id];
       if(m.ok){p.s&&p.s(m.res,p.u);}else{p.f&&p.f({message:m.err},p.u);}});
@@ -147,6 +154,8 @@
       if (/^criarIssue/.test(m.fn)) marcarSujo(aba, false);
     } else if (m.__painel === 'close') {
       if (window.MODO_WEB) mostrar('controle'); else google.script.host.close();
+    } else if (m.__painel === 'erro') {
+      mostrarErroTela(aba, m.msg);
     } else if (m.__painel === 'tab') {
       mostrar(m.tab);
       if (m.editar) enviarParaTela(m.tab, { __painel: 'editar', issue: m.editar });
@@ -184,6 +193,19 @@
   function enviarParaTela(aba, msg) {
     if (prontas[aba] && frames[aba]) frames[aba].contentWindow.postMessage(msg, '*');
     else pendentes[aba] = msg;
+  }
+
+  function mostrarErroTela(aba, msg) {
+    const box = $('p-' + aba);
+    if (!box) return;
+    let faixa = box.querySelector('.erro-tela');
+    if (!faixa) {
+      faixa = document.createElement('div');
+      faixa.className = 'erro-tela';
+      box.insertBefore(faixa, box.firstChild);
+    }
+    faixa.innerHTML = `⚠️ Erro na tela <b>${aba}</b>: <code>${String(msg).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</code>
+      <button onclick="this.parentNode.remove()">fechar</button>`;
   }
 
   function marcarSujo(aba, sujo) {
