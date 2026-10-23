@@ -77,6 +77,7 @@
     .chk-op { display:flex; gap:6px; align-items:center; margin-top:8px; font-size:12px; }
     .chk-op input { width:auto; }
     .meses-esp.desligado { opacity:.45; pointer-events:none; }
+    table.t02-off { opacity:.55; }
     .titulo-box { background:#fffae6; border:1px solid #ffe380; padding:7px 10px; border-radius:4px; margin-top:8px; font-size:12px; }
   </style>
 </head>
@@ -192,6 +193,7 @@
     <label><input type="checkbox" id="autoCalc" checked onchange="aplicarModoAuto()"> <b>Calcular automaticamente</b> pelo período De/Até</label>
     <label><input type="checkbox" id="descontarFeriados" checked onchange="recalcular()"> descontar feriados nacionais</label>
     <label><input type="checkbox" id="mesesVaziosEmBranco" checked onchange="invalidar(); marcarAlterado()"> meses sem alocação em branco na issue (sem "0")</label>
+    <label><input type="checkbox" id="naoPreencherTabela02" onchange="aplicarTabela02()"> <b>não preencher a Tabela 02</b> (em branco na issue)</label>
     <label>Horas/dia: <input type="text" id="horasDia" value="8" inputmode="decimal"></label>
   </div>
   <div class="dica" id="dicaCalc" style="margin-bottom:6px"></div>
@@ -557,6 +559,7 @@
     CAMPOS_TEXTO.forEach(id => d[id] = $(id).value);
     d.semDiasEspecificos = $('semDiasEspecificos').checked;
     d.mesesVaziosEmBranco = $('mesesVaziosEmBranco').checked;
+    d.naoPreencherTabela02 = $('naoPreencherTabela02').checked;
     d.diasEspecificos = Array.from({ length: 12 }, (_, i) => d.semDiasEspecificos ? '' : document.querySelector(`[data-esp="${i}"]`).value);
     d.meses = Array.from({ length: 12 }, (_, i) => ({ mes: CFG.meses[i], dias: inp(i, 'dias').value, horas: inp(i, 'horas').value }));
     return d;
@@ -571,6 +574,8 @@
     const temDias = (d.diasEspecificos || []).some(v => String(v || '').trim());
     $('semDiasEspecificos').checked = d.semDiasEspecificos !== undefined ? !!d.semDiasEspecificos : !temDias;
     $('mesesVaziosEmBranco').checked = d.mesesVaziosEmBranco !== false;
+    $('naoPreencherTabela02').checked = !!d.naoPreencherTabela02;
+    aplicarTabela02(true);
     $('boxEsp').open = temDias && !$('semDiasEspecificos').checked;
     aplicarSemDias(true);
     $('boxCrm').open = !!(String(d.crmEpico || '').trim() || String(d.crmSubtarefa || '').trim());
@@ -708,6 +713,14 @@
   function faltandoCamposProjeto() {
     const vals = lerCamposProjeto();
     return defsCamposProjeto.filter(d => { const v = vals[d.id]; return Array.isArray(v) ? !v.length : !String(v || '').trim(); });
+  }
+
+  function aplicarTabela02(silencioso) {
+    const nao = $('naoPreencherTabela02').checked;
+    $('mesesVaziosEmBranco').disabled = nao;
+    $('dicaCalc').dataset.extra = nao ? '1' : '';
+    document.querySelector('#linDias').closest('table').classList.toggle('t02-off', nao);
+    if (!silencioso) { invalidar(); marcarAlterado(); recalcular(); }
   }
 
   function aplicarSemDias(silencioso) {

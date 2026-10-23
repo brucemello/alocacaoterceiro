@@ -165,7 +165,7 @@ function validarDadosAgenda_(d) {
   if (String(d.consultoria || '').trim() && !(num_(d.valorHora) > 0)) {
     faltando.push('Valor hora negociado (obrigatório para Consultores Externos)');
   }
-  if (!(d.meses || []).some(m => num_(m.horas) > 0)) faltando.push('Tabela 02 (ao menos um mês com horas)');
+  if (!d.naoPreencherTabela02 && !(d.meses || []).some(m => num_(m.horas) > 0)) faltando.push('Tabela 02 (ao menos um mês com horas)');
   if (d.propostaExcecao) {
     if (!(num_(d.valorExcecao) > 0 || num_(d.valorHora) > 0)) faltando.push('Valor da Proposta de Exceção');
     if (!String(d.justificativaExcecao || '').trim()) faltando.push('Justificativa da Proposta de Exceção');
@@ -257,15 +257,16 @@ function montarDescricaoAgenda_(d) {
     const x = (d.meses || [])[i] || {};
     const dias = num_(x.dias), horas = num_(x.horas), valor = horas * vh;
     tDias += dias; tHoras += horas; tValor += valor;
-    const vazio = d.mesesVaziosEmBranco !== false && !dias && !horas;   // mês sem alocação fica em branco
+    const vazio = d.naoPreencherTabela02 || (d.mesesVaziosEmBranco !== false && !dias && !horas);   // em branco na issue
     cDias.push(vazio ? ' ' : vd(fmtNum_(dias, 0)));
     cHoras.push(vazio ? ' ' : vd(fmtNum_(horas, 0)));
     cValor.push(vazio ? ' ' : '*' + vd(fmtNum_(valor, 2)) + '*');
   });
   L.push('|*Meses da alocação:*|' + CONFIG_PI.MESES.map(m => `*${m}*`).join('|') + '|*Total*|');
-  L.push('|*Dias de alocação:*|' + cDias.join('|') + '|' + az(fmtNum_(tDias, 0)) + '|');
-  L.push('|*Horas de alocação:*|' + cHoras.join('|') + '|' + az(fmtNum_(tHoras, 0)) + '|');
-  L.push('|*Valor Total da alocação:*|' + cValor.join('|') + '|*' + az(fmtNum_(tValor, 2)) + '*|');
+  const tot = (txt, neg) => d.naoPreencherTabela02 ? ' ' : (neg ? '*' + az(txt) + '*' : az(txt));
+  L.push('|*Dias de alocação:*|' + cDias.join('|') + '|' + tot(fmtNum_(tDias, 0)) + '|');
+  L.push('|*Horas de alocação:*|' + cHoras.join('|') + '|' + tot(fmtNum_(tHoras, 0)) + '|');
+  L.push('|*Valor Total da alocação:*|' + cValor.join('|') + '|' + tot(fmtNum_(tValor, 2), true) + '|');
 
   return L.join('\n');
 }
@@ -472,6 +473,7 @@ function lerAgendaDaDescricao_(desc) {
 
   d.semDiasEspecificos = !d.diasEspecificos.some(Boolean);
   d.mesesVaziosEmBranco = true;
+  d.__lerTabela02 = true;
 
   // Tabela 02: dias e horas por mês
   const linhaT = rot => t02.find(c => normRotulo_(c[0]).indexOf(rot) === 0);
@@ -481,6 +483,7 @@ function lerAgendaDaDescricao_(desc) {
     dias: ld && !ehPlaceholder_(ld[i + 1]) && num_(ld[i + 1]) ? String(num_(ld[i + 1])) : '',
     horas: lh && !ehPlaceholder_(lh[i + 1]) && num_(lh[i + 1]) ? String(num_(String(lh[i + 1]).replace(/\./g, ''))) : ''
   }));
+  if (d.__lerTabela02) { delete d.__lerTabela02; d.naoPreencherTabela02 = !d.meses.some(m => num_(m.horas) > 0); if (d.naoPreencherTabela02) d.autoCalc = true; }
   return d;
 }
 
