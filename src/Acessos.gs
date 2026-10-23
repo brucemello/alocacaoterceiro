@@ -214,6 +214,7 @@ function obterDadosAcessos(timeSel) {
       time: g('Time') || timeDoUsuario_(g('Solicitante')), perfisHoracius: g('Perfis Horacius')
     };
   }).filter(l => l.id && esc.filtro(l.time));
+  try { const n = contarCredenciais_(); base.linhas.forEach(l => l.qtdCred = n[l.id] || 0); } catch (e) {}
   return base;
 }
 
@@ -296,4 +297,136 @@ function irParaAbaAcessos() {
   const dentro = !!SpreadsheetApp.getActiveSpreadsheet();
   if (dentro) ss.setActiveSheet(aba);
   return { url: ss.getUrl() + '#gid=' + aba.getSheetId(), web: !dentro };
+}
+
+/************************************************************
+ * CREDENCIAIS GERADAS NO HORACIUS
+ * - Aba 'Credenciais_Terceiros': ativo, acesso, usuário, quem guardou, entrega.
+ *   A SENHA NÃO VAI PARA A PLANILHA (todos os editores leriam).
+ * - A senha fica nas UserProperties de quem cadastrou: só essa pessoa
+ *   consegue ver/copiar, e pode apagar depois de entregar ao analista.
+ ************************************************************/
+const ABA_CRED = 'Credenciais_Terceiros';
+const COLS_CRED = ['ID', 'ID Solicitação', 'Recurso', 'Ativo', 'Acesso', 'Identificador do Usuário',
+  'Registrado em', 'Registrado por', 'Senha', 'Entregue ao analista em', 'Observação'];
+const C_CRED = {}; COLS_CRED.forEach((n, i) => C_CRED[n] = i + 1);
+const PREFIXO_SENHA = 'CRED_SENHA_';
+
+function abaCredenciais_() {
+  const ss = planilha_();
+  let aba = ss.getSheetByName(ABA_CRED);
+  if (aba) return aba;
+  aba = ss.insertSheet(ABA_CRED);
+  aba.getRange(1, 1, 1, COLS_CRED.length).setValues([COLS_CRED])
+    .setFontWeight('bold').setBackground('#1f4e78').setFontColor('#ffffff');
+  aba.setFrozenRows(1);
+  [80, 90, 200, 210, 240, 160, 120, 150, 230, 140, 200].forEach((w, i) => aba.setColumnWidth(i + 1, w));
+  aba.getRange(2, C_CRED['Registrado em'], aba.getMaxRows() - 1, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+  aba.getRange(2, C_CRED['Entregue ao analista em'], aba.getMaxRows() - 1, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+  return aba;
+}
+
+function credenciaisDaAba_() {
+  const aba = planilha_().getSheetByName(ABA_CRED);
+  if (!aba || aba.getLastRow() < 2) return [];
+  return aba.getRange(2, 1, aba.getLastRow() - 1, COLS_CRED.length).getDisplayValues().map((r, i) => {
+    const g = c => String(r[C_CRED[c] - 1] || '').trim();
+    return { linha: i + 2, id: g('ID'), idSolic: g('ID Solicitação'), recurso: g('Recurso'), ativo: g('Ativo'), acesso: g('Acesso'),
+      usuario: g('Identificador do Usuário'), registradoEm: g('Registrado em'), registradoPor: g('Registrado por'),
+      senha: g('Senha'), entregue: g('Entregue ao analista em'), obs: g('Observação') };
+  }).filter(c => c.id);
+}
+
+function senhaGuardada_(id) {
+  try { return PropertiesService.getUserProperties().getProperty(PREFIXO_SENHA + id) || ''; } catch (e) { return ''; }
+}
+
+/** Credenciais de uma solicitação (sem senha; diz se a senha está com você). */
+function listarCredenciaisAcesso(idSolic) {
+  const eu = emailAtual_();
+  return credenciaisDaAba_().filter(c => c.idSolic === String(idSolic)).map(c => {
+    const minha = !!senhaGuardada_(c.id);
+    return { id: c.id, ativo: c.ativo, acesso: c.acesso, usuario: c.usuario, registradoEm: c.registradoEm,
+      registradoPor: c.registradoPor, entregue: c.entregue, obs: c.obs, senhaComigo: minha,
+      senhaStatus: minha ? 'guardada com você' : (c.senha || 'não guardada'), souEu: c.registradoPor === eu };
+  });
+}
+
+/** Contagem por solicitação, para a lista. */
+function contarCredenciais_() {
+  const n = {};
+  credenciaisDaAba_().forEach(c => n[c.idSolic] = (n[c.idSolic] || 0) + 1);
+  return n;
+}
+
+function salvarCredencialAcesso(d) {
+  const idSolic = String(d.idSolic || '').trim();
+  if (!idSolic) throw new Error('Salve a solicitação de acesso antes de registrar as credenciais.');
+  ['ativo', 'usuario'].forEach(k => { if (!String(d[k] || '').trim()) throw new Error('Informe ' + (k === 'ativo' ? 'o ativo.' : 'o identificador do usuário.')); });
+  const abaAc = abaAcessos_();
+  const linhaSolic = linhaAcesso_(abaAc, idSolic);
+  if (!linhaSolic) throw new Error('Solicitação não encontrada.');
+  const recurso = abaAc.getRange(linhaSolic, C_AC['Recurso']).getValue();
+  const eu = emailAtual_();
+
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const aba = abaCredenciais_();
+    const atual = d.id ? credenciaisDaAba_().find(c => c.id === d.id) : null;
+    const id = atual ? atual.id : Utilities.getUuid().substring(0, 8);
+    const senha = String(d.senha || '');
+    if (senha) PropertiesService.getUserProperties().setProperty(PREFIXO_SENHA + id, senha);
+    const comigo = !!senhaGuardada_(id);
+    const linha = atual ? atual.linha : aba.getLastRow() + 1;
+    aba.getRange(linha, 1, 1, COLS_CRED.length).setValues([[
+      id, idSolic, recurso, String(d.ativo).trim(), String(d.acesso || '').trim(), String(d.usuario).trim(),
+      atual ? aba.getRange(linha, C_CRED['Registrado em']).getValue() : new Date(),
+      atual ? atual.registradoPor : eu,
+      comigo ? 'guardada com ' + eu + ' (fora da planilha)' : (atual ? atual.senha : 'não guardada'),
+      atual ? aba.getRange(linha, C_CRED['Entregue ao analista em']).getValue() : '',
+      String(d.obs || (atual ? atual.obs : '')).trim()
+    ]]);
+  } finally { lock.releaseLock(); }
+  return listarCredenciaisAcesso(idSolic);
+}
+
+/** Só quem guardou consegue ler (UserProperties é por usuário). */
+function revelarSenhaCredencial(id) {
+  const s = senhaGuardada_(id);
+  if (!s) throw new Error('A senha não está guardada com você (só quem cadastrou consegue ver).');
+  return s;
+}
+
+function apagarSenhaCredencial(id) {
+  PropertiesService.getUserProperties().deleteProperty(PREFIXO_SENHA + id);
+  const c = credenciaisDaAba_().find(x => x.id === id);
+  if (c) abaCredenciais_().getRange(c.linha, C_CRED['Senha']).setValue('apagada em ' +
+    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm') + ' por ' + emailAtual_());
+  return c ? listarCredenciaisAcesso(c.idSolic) : [];
+}
+
+function marcarCredencialEntregue(id, entregue) {
+  const c = credenciaisDaAba_().find(x => x.id === id);
+  if (!c) throw new Error('Credencial não encontrada.');
+  abaCredenciais_().getRange(c.linha, C_CRED['Entregue ao analista em']).setValue(entregue ? new Date() : '');
+  return listarCredenciaisAcesso(c.idSolic);
+}
+
+function removerCredencialAcesso(id) {
+  const c = credenciaisDaAba_().find(x => x.id === id);
+  if (!c) return [];
+  PropertiesService.getUserProperties().deleteProperty(PREFIXO_SENHA + id);
+  abaCredenciais_().deleteRow(c.linha);
+  return listarCredenciaisAcesso(c.idSolic);
+}
+
+/** Texto para mandar ao analista (inclui as senhas que estão com você). */
+function textoCredenciaisParaAnalista(idSolic) {
+  const lista = credenciaisDaAba_().filter(c => c.idSolic === String(idSolic));
+  if (!lista.length) throw new Error('Nenhuma credencial registrada.');
+  const blocos = lista.map(c => [`Ativo: ${c.ativo}`, c.acesso ? `Acesso: ${c.acesso}` : null,
+    `Usuário: ${c.usuario}`, `Senha: ${senhaGuardada_(c.id) || '(com ' + (c.registradoPor || 'quem cadastrou') + ')'}`]
+    .filter(Boolean).join('\n'));
+  return `Olá ${lista[0].recurso || ''},\n\nSeguem os seus acessos:\n\n${blocos.join('\n\n')}\n\n` +
+    'Troque a senha no primeiro acesso e não compartilhe com ninguém.';
 }

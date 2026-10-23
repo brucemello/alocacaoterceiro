@@ -47,6 +47,17 @@
     .perfis span.nome { cursor:copy; } .perfis span.nome:hover { color:var(--azul2); text-decoration:underline; }
     .prog-h { display:inline-block; margin-top:4px; font-size:11px; padding:1px 7px; border-radius:9px; background:#fff7e6; color:#974f0c; }
     .prog-h.tudo { background:#e3fcef; color:#006644; }
+    .cofre { font-size:12px; color:#403294; background:#f3f0ff; border:1px solid #c0b6f2; border-radius:4px; padding:6px 10px; margin-bottom:6px; }
+    .cred-form { display:grid; grid-template-columns: 1.2fr 1.2fr 1fr 1fr auto; gap:6px; margin-top:6px; align-items:center; }
+    .senha-box { display:flex; gap:4px; } .senha-box input { flex:1; }
+    #credArea { overflow-x:auto; }
+    table.cred { width:100%; border-collapse:collapse; margin-top:8px; font-size:12px; }
+    table.cred th { text-align:left; background:#f4f5f7; padding:5px 6px; font-size:11px; color:#42526e; }
+    table.cred td { padding:5px 6px; border-bottom:1px solid #ebecf0; vertical-align:middle; }
+    table.cred code { font-size:12px; background:#f4f5f7; padding:1px 5px; border-radius:3px; }
+    .senha-st { font-size:11px; color:#6b778c; }
+    .cred-n { display:inline-block; margin:4px 0 0 4px; font-size:11px; padding:1px 7px; border-radius:9px; background:#f3f0ff; color:#403294; }
+    @media (max-width: 760px) { .cred-form { grid-template-columns: 1fr; } }
     .texto { background:#f4f5f7; border:1px solid var(--borda); border-radius:4px; padding:10px; white-space:pre-wrap; font-family:Consolas, monospace; font-size:12px; max-height:240px; overflow:auto; }
     .linha { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
     .linha input { flex:1; min-width:180px; }
@@ -133,6 +144,26 @@
       <input id="chamado" placeholder="Nº do chamado aberto no portal (ex.: 3107383 ou o link) — pode informar depois">
       <button class="primario" id="btnSalvar" onclick="salvar()">💾 Salvar solicitação</button>
       <button class="secundario" onclick="fecharForm()">Fechar</button>
+    </div>
+
+    <div class="passo">5 · Credenciais geradas no Horacius</div>
+    <div id="credBloqueio" class="dica-horacius">Salve a solicitação primeiro (passo 4) para registrar as credenciais.</div>
+    <div id="credArea" style="display:none">
+      <div class="cofre">🔒 <b>A senha não vai para a planilha.</b> Ela fica guardada só com você (na sua conta Google, fora da planilha):
+        só você vê e copia. Depois de entregar ao analista, apague a senha. Ativo, acesso e usuário ficam na aba <b>Credenciais_Terceiros</b>.</div>
+      <textarea id="credColar" rows="3" placeholder="Cole aqui o texto do Horacius (Ativo / Acesso / Identificador do Usuário / Senha) e os campos se preenchem sozinhos"></textarea>
+      <div class="cred-form">
+        <input id="credAtivo" list="dlAtivos" placeholder="Ativo (ex.: Active Directory totvspartners)"><datalist id="dlAtivos"></datalist>
+        <input id="credAcesso" placeholder="Acesso (ex.: Grupos de Acesso TOTVS PARTNERS)">
+        <input id="credUsuario" placeholder="Identificador do usuário" autocomplete="off">
+        <div class="senha-box"><input id="credSenha" type="password" placeholder="Senha" autocomplete="new-password">
+          <button class="secundario mini" type="button" onclick="verSenhaDigitada()" title="Mostrar/ocultar">👁</button></div>
+        <button class="primario" onclick="salvarCredencial()">💾 Guardar credencial</button>
+      </div>
+      <table class="cred"><thead><tr><th>Ativo</th><th>Acesso</th><th>Usuário</th><th>Senha</th><th>Entregue</th><th></th></tr></thead>
+        <tbody id="tbCred"></tbody></table>
+      <div class="linha"><button class="secundario" onclick="copiarMensagemAnalista()">📋 Copiar mensagem para o analista</button>
+        <span style="font-size:11px;color:#6b778c">inclui as senhas que estão com você; envie por um canal privado e peça para trocar no primeiro acesso</span></div>
     </div>
   </div>
 
@@ -223,6 +254,7 @@
     document.querySelectorAll('#checks input').forEach(c => c.checked = false);
     marcarPerfis('nenhum', true);
     $('selRecurso').value = '';
+    mostrarCredenciais();
     $('btnSalvar').textContent = '💾 Salvar solicitação';
     $('card').classList.add('on');
     gerarTexto();
@@ -244,6 +276,7 @@
     const pedidos = String(l.perfisHoracius || '').split(/\s*,\s*/).filter(Boolean);
     document.querySelectorAll('#perfis input[data-chave]').forEach(c => c.checked = pedidos.indexOf(c.value) !== -1);
     atualizarGruposPerfis();
+    mostrarCredenciais();
     $('outros').value = marcados.filter(m => DADOS.sistemas.indexOf(m) === -1 && !/horacius/i.test(m)).join(', ');
     $('btnSalvar').textContent = '💾 Salvar alterações';
     $('card').classList.add('on');
@@ -418,6 +451,7 @@
     google.script.run.withSuccessHandler(r => {
       $('btnSalvar').disabled = false;
       editandoId = r.id;
+      mostrarCredenciais();
       $('btnSalvar').textContent = '💾 Salvar alterações';
       mostrarMsg(`✅ Solicitação salva · status <b>${esc(r.status)}</b>${r.status === 'Aguardando abertura' ? ' · informe o nº do chamado quando abrir no portal.' : ''}`, 'ok');
       carregar();
@@ -478,7 +512,7 @@
         <td style="min-width:180px"><b>${esc(l.recurso)}</b><div class="sub">${esc(l.email)}${l.consultoria ? ' · ' + esc(l.consultoria) : ''}</div></td>
         <td style="min-width:220px">${esc(l.projeto)}<div class="sub">${esc(l.codigoProjeto)}${l.squad ? ' · ' + esc(l.squad) : ''}${l.issue ? ` · <a href="${DADOS.jiraUrl}/browse/${esc(l.issue)}">${esc(l.issue)}</a>` : ''}</div></td>
         <td style="white-space:nowrap">${esc(l.de)}${l.ate ? ' → ' + esc(l.ate) : ''}${aviso}</td>
-        <td style="min-width:200px">${esc(l.acessos)}<div>${progressoHoracius(l)}</div></td>
+        <td style="min-width:200px">${esc(l.acessos)}<div>${progressoHoracius(l)}${l.qtdCred ? `<span class="cred-n" title="Credenciais registradas">🔑 ${l.qtdCred} credencial(is)</span>` : ''}</div></td>
         <td style="min-width:120px">${l.chamado ? `<a href="${DADOS.urlTicket}${esc(l.chamado)}">#${esc(l.chamado)}</a>` : ''}
           <input data-id="${esc(l.id)}" data-c="Nº Chamado" value="${esc(l.chamado)}" placeholder="nº do chamado" style="margin-top:3px"></td>
         <td style="min-width:160px"><select data-id="${esc(l.id)}" data-c="Status">${opts}</select>
@@ -511,6 +545,101 @@
 
   carregar();
   carregarRecursos();
+
+  // ---------- credenciais geradas no Horacius ----------
+  let CREDS = [];
+  function mostrarCredenciais() {
+    const tem = !!editandoId;
+    $('credArea').style.display = tem ? 'block' : 'none';
+    $('credBloqueio').style.display = tem ? 'none' : 'block';
+    ['credColar', 'credAtivo', 'credAcesso', 'credUsuario', 'credSenha'].forEach(k => $(k).value = '');
+    $('dlAtivos').innerHTML = Array.from(new Set((DADOS.perfis || []).map(p => p.ativo))).map(a => `<option value="${esc(a)}">`).join('');
+    CREDS = []; desenharCreds();
+    if (tem) google.script.run.withSuccessHandler(l => { CREDS = l; desenharCreds(); })
+      .withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).listarCredenciaisAcesso(editandoId);
+  }
+  function desenharCreds() {
+    $('tbCred').innerHTML = CREDS.length ? CREDS.map(c => `<tr>
+      <td>${esc(c.ativo)}</td><td>${esc(c.acesso)}</td>
+      <td><code>${esc(c.usuario)}</code> <button class="secundario mini" onclick="copiarTexto(${esc(JSON.stringify(c.usuario))}, 'Usuário copiado.')">📋</button></td>
+      <td id="sen-${esc(c.id)}">${c.senhaComigo
+        ? `<code>••••••••</code> <button class="secundario mini" onclick="verSenha('${esc(c.id)}')">👁</button>
+           <button class="secundario mini" onclick="copiarSenha('${esc(c.id)}')">📋</button>
+           <button class="secundario mini" onclick="apagarSenha('${esc(c.id)}')" title="Apagar a senha guardada">🗑 senha</button>`
+        : `<span class="senha-st">${esc(c.senhaStatus)}</span>`}</td>
+      <td><label style="display:flex;gap:4px;align-items:center"><input type="checkbox" style="width:auto" ${c.entregue ? 'checked' : ''}
+        onchange="entregue('${esc(c.id)}', this.checked)"> <span class="senha-st">${esc(c.entregue)}</span></label></td>
+      <td><button class="secundario mini" onclick="removerCred('${esc(c.id)}')" title="Remover credencial">✕</button></td></tr>`).join('')
+      : '<tr><td colspan="6" class="senha-st">Nenhuma credencial registrada.</td></tr>';
+  }
+  /** Lê o texto colado do Horacius: "Ativo: …", "Acesso: …", "Identificador do Usuário: …", "Senha: …". */
+  function lerTextoHoracius(txt) {
+    const campos = {};
+    String(txt || '').split(/\r?\n/).forEach(l => {
+      const i = l.indexOf(':'); if (i < 1) return;
+      const k = l.slice(0, i).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const v = l.slice(i + 1).replace(/^[ \t]+/, '').replace(/\r$/, '');
+      if (/^ativo/.test(k)) campos.ativo = v.trim();
+      else if (/^acesso|^perfil|^grupo/.test(k)) campos.acesso = v.trim();
+      else if (/identificador|usuario|login/.test(k)) campos.usuario = v.trim();
+      else if (/^senha|password/.test(k)) campos.senha = v;
+    });
+    return campos;
+  }
+  function aplicarColagem() {
+    const c = lerTextoHoracius($('credColar').value);
+    if (c.ativo) $('credAtivo').value = c.ativo;
+    if (c.acesso) $('credAcesso').value = c.acesso;
+    if (c.usuario) $('credUsuario').value = c.usuario;
+    if (c.senha) $('credSenha').value = c.senha;
+    if (c.ativo || c.usuario || c.senha) {         // não deixa a senha à vista no texto colado
+      $('credColar').value = '';
+      mostrarMsg('📥 Texto do Horacius lido. Confira os campos e clique em <b>Guardar credencial</b>.', 'info');
+    }
+  }
+  function verSenhaDigitada() { $('credSenha').type = $('credSenha').type === 'password' ? 'text' : 'password'; }
+  function salvarCredencial() {
+    const d = { idSolic: editandoId, ativo: $('credAtivo').value, acesso: $('credAcesso').value, usuario: $('credUsuario').value, senha: $('credSenha').value };
+    google.script.run.withSuccessHandler(l => {
+      CREDS = l; desenharCreds();
+      ['credColar', 'credAtivo', 'credAcesso', 'credUsuario', 'credSenha'].forEach(k => $(k).value = '');
+      $('credSenha').type = 'password';
+      mostrarMsg('🔒 Credencial guardada. A senha ficou só com você, fora da planilha.', 'ok');
+      const linha = DADOS.linhas.find(x => x.id === editandoId); if (linha) { linha.qtdCred = l.length; render(); }
+    }).withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).salvarCredencialAcesso(d);
+  }
+  function verSenha(id) {
+    const td = $('sen-' + id);
+    google.script.run.withSuccessHandler(s => {
+      const code = td.querySelector('code'); code.textContent = s;
+      setTimeout(() => { code.textContent = '••••••••'; }, 15000);   // esconde de novo em 15 s
+    }).withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).revelarSenhaCredencial(id);
+  }
+  function copiarSenha(id) {
+    google.script.run.withSuccessHandler(s => copiarTexto(s, 'Senha copiada.'))
+      .withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).revelarSenhaCredencial(id);
+  }
+  function apagarSenha(id) {
+    if (!confirm('Apagar a senha guardada? Faça isso depois de entregar ao analista.')) return;
+    google.script.run.withSuccessHandler(l => { CREDS = l; desenharCreds(); mostrarMsg('🗑 Senha apagada.', 'ok'); })
+      .withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).apagarSenhaCredencial(id);
+  }
+  function entregue(id, on) {
+    google.script.run.withSuccessHandler(l => { CREDS = l; desenharCreds(); })
+      .withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).marcarCredencialEntregue(id, on);
+  }
+  function removerCred(id) {
+    if (!confirm('Remover esta credencial (e a senha guardada)?')) return;
+    google.script.run.withSuccessHandler(l => {
+      CREDS = l; desenharCreds();
+      const linha = DADOS.linhas.find(x => x.id === editandoId); if (linha) { linha.qtdCred = l.length; render(); }
+    }).withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).removerCredencialAcesso(id);
+  }
+  function copiarMensagemAnalista() {
+    google.script.run.withSuccessHandler(t => copiarTexto(t, 'Mensagem copiada. Envie ao analista por um canal privado.'))
+      .withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).textoCredenciaisParaAnalista(editandoId);
+  }
+  $('credColar').addEventListener('input', aplicarColagem);
 </script>
 </body>
 </html>

@@ -114,6 +114,16 @@ A mesma planilha atende vários times. A aba **`Times`** guarda e-mail, nome, ti
 **Novo TL:** precisa de acesso de Editor à planilha. Ele abre o painel, vai em ⚙️ Configurações, salva o perfil
 (nome + time) e o próprio token, e testa a conexão.
 
+## Credenciais do terceiro
+
+Na solicitação de acesso, o passo **5 · Credenciais geradas no Horacius** guarda o que o Horacius gera
+(ativo, acesso, identificador do usuário e senha). Dá para colar o texto do Horacius e os campos se preenchem.
+
+- Ativo, acesso, usuário, quem registrou e data de entrega ficam na aba `Credenciais_Terceiros`.
+- **A senha não vai para a planilha.** Fica nas *UserProperties* de quem cadastrou: só essa pessoa vê e copia.
+  Depois de entregar ao analista, apague a senha (fica registrado quem apagou e quando).
+- **Copiar mensagem para o analista** monta o texto com as credenciais para enviar por um canal privado.
+
 ## Tour guiado e manual
 
 Na primeira vez que cada pessoa abre o painel, um **tour guiado** de 8 passos mostra perfil, token, Projeto Interno,
