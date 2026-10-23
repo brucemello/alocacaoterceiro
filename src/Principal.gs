@@ -8,6 +8,8 @@ const CONFIG = {
   JIRA_BASE_URL: 'https://jiraproducao.totvs.com.br',
   // Link do App da Web (painel direto no navegador) usado nos e-mails e em Configurações
   URL_APP_WEB: 'https://script.google.com/a/macros/totvs.com.br/s/AKfycbxSmYpwtHQvrXVfDlalr0-WqtEhcaAbbmQ95Z0IKD9vXIf02vN-6cDv1oHyCR1G9wwS/exec',
+  // Manual do TL (passo a passo) — aparece no tour guiado (botão ❓ Tour)
+  URL_MANUAL: 'https://claude.ai/artifact/DRQeqkWsPJVWfJg7xVLmeq',
   ABA_LOG: 'Logs',
   ABAS_PROTEGIDAS: ['Logs', 'Criar_Issues', 'Template_Bruto', 'Controle_Solicitacoes',
     'Rascunhos_PI', 'Rascunhos_Agenda', 'Acessos_Terceiros']

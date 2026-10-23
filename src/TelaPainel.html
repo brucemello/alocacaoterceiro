@@ -46,6 +46,21 @@
     .tag { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold; }
     .tag.on { background:#e3fcef; color:#006644; } .tag.off { background:#f4f5f7; color:#6b778c; }
     .res { margin-top:8px; font-size:12px; min-height:16px; }
+    /* ---------- Tour guiado ---------- */
+    .btnTour { align-self:center; margin-left:10px; background:rgba(255,255,255,.14); color:#fff; padding:5px 10px; font-size:12px; }
+    .btnTour:hover { background:rgba(255,255,255,.26); }
+    #tourBloqueio { position:fixed; inset:0; z-index:50; }
+    #tourFoco { position:fixed; z-index:51; border-radius:8px; pointer-events:none; transition:all .25s ease;
+      box-shadow:0 0 0 3px #ffab00, 0 0 0 9999px rgba(9,30,66,.58); }
+    #tourBalao { position:fixed; z-index:52; width:min(380px, calc(100vw - 24px)); background:#fff; border-radius:8px;
+      box-shadow:0 8px 28px rgba(9,30,66,.35); padding:16px 18px 12px; transition:top .25s ease, left .25s ease; }
+    #tourBalao h3 { margin:0 0 8px; color:var(--azul); font-size:15px; }
+    #tourBalao .txt { color:#172b4d; line-height:1.5; font-size:13px; }
+    #tourBalao .txt ul { margin:6px 0; padding-left:18px; } #tourBalao .txt li { margin:3px 0; }
+    #tourBalao .rodape { display:flex; align-items:center; gap:6px; margin-top:12px; }
+    #tourBalao .passo { color:var(--cinza); font-size:11px; margin-right:auto; }
+    #tourBalao .pular { background:none; color:var(--cinza); font-weight:normal; padding:7px 6px; }
+    #tourBalao a { color:var(--azul2); }
   </style>
 </head>
 <body>
@@ -57,6 +72,7 @@
     <button class="aba" data-aba="acessos">🔑 Acessos</button>
     <button class="aba" data-aba="cfg">⚙️ Configurações</button>
     <div class="usuario" id="usuarioTopo" onclick="mostrar('cfg')" title="Meu perfil"></div>
+    <button class="btnTour" id="btnTour" onclick="iniciarTour()" title="Tour guiado e manual">❓ Tour</button>
   </div>
 
   <div class="conteudo">
@@ -68,7 +84,7 @@
     <div class="painel" id="p-cfg">
       <div id="cfg">
         <div class="cards">
-          <div class="card destaque">
+          <div class="card destaque" id="cardPerfil">
             <h4>👤 Meu perfil</h4>
             <p>E-mail: <b id="pfEmail">—</b> · Papel: <span id="pfPapel" class="tag on">—</span></p>
             <div class="linha"><input type="text" id="pfNome" placeholder="Seu nome"></div>
@@ -78,7 +94,7 @@
             <div class="res" id="resPerfil"></div>
             <p style="font-size:11px;color:#6b778c">Você vê as solicitações do seu time. Gestor/Admin podem ver todos os times.</p>
           </div>
-          <div class="card destaque">
+          <div id="cardToken" class="card destaque">
             <h4>🔑 Meu token do Jira</h4>
             <p id="cfgToken">Verificando…</p>
             <div class="linha"><input type="password" id="token" placeholder="Cole aqui o SEU Personal Access Token (PAT) do Jira"><button class="secundario" onclick="salvarToken()">Salvar</button></div>
@@ -324,8 +340,12 @@
     catch (e) { $('urlWeb').select(); document.execCommand('copy'); ok(); }
   }
   // ---------- perfil / times ----------
+  let tourAutoFeito = false;
   function preencherPerfil(p) {
     if (!p) return;
+    PERFIL = p; URL_MANUAL = p.urlManual || URL_MANUAL;
+    if (!tourAutoFeito && !p.tourVisto) { tourAutoFeito = true; setTimeout(iniciarTour, 400); }
+    tourAutoFeito = true;
     $('pfEmail').textContent = p.email || '—';
     $('pfPapel').textContent = p.cadastrado ? p.papel : 'não cadastrado';
     $('pfPapel').className = 'tag ' + (p.cadastrado ? 'on' : 'off');
@@ -401,6 +421,123 @@
     google.script.run.withSuccessHandler(() => $('resCache').innerHTML = '<span class="ok">✔ Cache limpo.</span>')
       .withFailureHandler(e => $('resCache').innerHTML = `<span class="erro">${e.message}</span>`).limparCacheTemplatesPainel();
   }
+  // ---------- Tour guiado ----------
+  // Cada passo: aba a abrir (opcional), elemento a destacar (opcional), título e texto.
+  let PERFIL = null, tourI = -1, URL_MANUAL = '';
+  const TOUR = [
+    { titulo: '🦇 Bem-vindo ao Agente A.I.F.R.E.A.D',
+      texto: () => `Aqui você <b>solicita Projeto Interno e Agenda</b> de terceiros no Jira, acompanha tudo no <b>Controle</b>
+        e pede os <b>acessos</b> do terceiro.<br><br>Em 2 minutos eu te mostro onde fica cada coisa. Use <b>Próximo</b> ou as setas do teclado.` },
+    { aba: 'cfg', alvo: '#cardPerfil', titulo: '1. Seu perfil e seu time',
+      texto: () => `Informe <b>seu nome</b> e o <b>seu time</b> e clique em <b>Salvar perfil</b>.
+        <ul><li>O time decide <b>o que você vê</b> no Controle e em Acessos.</li>
+        <li>Os e-mails de aviso e o relatório de segunda chegam para o seu time.</li>
+        <li>Em “E-mails extras”, coloque quem mais deve receber os avisos (ex.: PMO).</li></ul>` +
+        (PERFIL && !PERFIL.cadastrado ? '<b style="color:#b65c00">⚠️ Você ainda não salvou o seu perfil.</b>' : '') },
+    { aba: 'cfg', alvo: '#cardToken', titulo: '2. Seu token do Jira',
+      texto: () => `As issues saem <b>no seu nome</b> no Jira, então cada TL usa o próprio token.
+        <ul><li>No Jira: clique na sua foto → <b>Perfil</b> → <b>Tokens de acesso pessoal</b> → <b>Criar token</b>.</li>
+        <li>Cole aqui, clique em <b>Salvar</b> e depois em <b>🧪 Testar conexão</b>.</li>
+        <li>O token fica guardado só para você.</li></ul>` +
+        (PERFIL && PERFIL.token !== 'pessoal' ? '<b style="color:#b65c00">⚠️ Você ainda está usando o token do sistema.</b>' : '<span class="ok">✔ Seu token já está salvo.</span>') },
+    { aba: 'projeto', alvo: '#p-projeto', titulo: '3. Solicitar Projeto Interno',
+      texto: () => `É o primeiro passo: o projeto que reserva o orçamento.
+        <ul><li>Preencha só os campos em <b style="color:#0052cc">azul</b> e <b style="color:#00875a">verde</b>; o resto segue a template.</li>
+        <li>Na Tabela 02, horas e valores são <b>calculados sozinhos</b>.</li>
+        <li>Tudo é salvo como <b>rascunho</b> enquanto você digita; dá para continuar depois.</li>
+        <li>Clique em <b>Revisar</b> e depois em <b>Confirmar e criar</b>: a tarefa nasce no épico e entra no Controle.</li></ul>` },
+    { aba: 'agenda', alvo: '#p-agenda', titulo: '4. Solicitar Agenda do terceiro',
+      texto: () => `Depois que o projeto tiver o <b>código PSA</b>, abra a agenda de cada recurso.
+        <ul><li>Escolha o <b>projeto</b>, o <b>recurso</b> e a <b>squad</b> nos combos.</li>
+        <li>Informe o período; feriados entram sozinhos em “Não alocar”.</li>
+        <li>Se o gestor pedir, use as opções: <b>não incluir dias específicos</b>, <b>não preencher a Tabela 02</b> ou <b>Proposta de Exceção</b> com justificativa.</li></ul>` },
+    { aba: 'controle', alvo: '#p-controle', titulo: '5. Acompanhar no Controle',
+      texto: () => `Tudo o que o seu time abriu aparece aqui, atualizado com o Jira <b>a cada 15 minutos</b>.
+        <ul><li>Status do Jira, nº da solicitação Fluig, ticket e última resposta.</li>
+        <li><b>Projetos</b> e <b>Agendas</b> têm visões de valor separadas, nunca somadas.</li>
+        <li>✏️ <b>edita</b> uma agenda já aberta (o gestor pediu ajuste) e 📄 <b>clona</b> para renovar.</li>
+        <li>📥 <b>Importar</b> traz issues abertas por outra pessoa.</li>` +
+        (PERFIL && PERFIL.veTodos ? '<li>Como ' + (PERFIL.papel || 'Gestor') + ', use o seletor de <b>time</b> para ver os outros times.</li>' : '') + '</ul>' },
+    { aba: 'acessos', alvo: '#p-acessos', titulo: '6. Liberar os acessos',
+      texto: () => `Com a agenda aprovada, peça os acessos do terceiro.
+        <ul><li>Escolha o terceiro, marque os acessos e <b>copie o texto do chamado</b>.</li>
+        <li>Abra o portal de suporte, cole o texto e registre o <b>nº do chamado</b>.</li>
+        <li>Quando o status for <b>Liberar no Horacius</b>, inclua o analista na sua estrutura e marque <b>Horacius liberado</b>.</li></ul>` },
+    { alvo: '#usuarioTopo', titulo: '7. Você e o seu time',
+      texto: () => `Aqui aparece quem está usando e o time. Clique para voltar ao seu perfil.<br><br>
+        Para rever este tour, clique em <b>❓ Tour</b>.` +
+        (URL_MANUAL ? ` O <a href="${URL_MANUAL}" target="_blank">📘 manual completo</a> tem o passo a passo detalhado.` : '') }
+  ];
+
+  function iniciarTour() {
+    if (!$('tourBloqueio')) {
+      document.body.insertAdjacentHTML('beforeend', `<div id="tourBloqueio"></div><div id="tourFoco"></div>
+        <div id="tourBalao" role="dialog" aria-live="polite"><h3 id="tourTit"></h3><div class="txt" id="tourTxt"></div>
+        <div class="rodape"><span class="passo" id="tourPasso"></span><button class="pular" onclick="fecharTour()">Pular</button>
+        <button class="secundario" id="tourVoltar" onclick="passoTour(tourI-1)">Voltar</button>
+        <button class="primario" id="tourProx" onclick="passoTour(tourI+1)">Próximo</button></div></div>`);
+      $('tourBloqueio').addEventListener('click', () => passoTour(tourI + 1));
+    }
+    ['tourBloqueio', 'tourFoco', 'tourBalao'].forEach(i => $(i).style.display = '');
+    passoTour(0);
+  }
+
+  function passoTour(i) {
+    if (i < 0) return;
+    if (i >= TOUR.length) return fecharTour(true);
+    tourI = i;
+    const p = TOUR[i];
+    if (p.aba) mostrar(p.aba);
+    $('tourTit').textContent = p.titulo;
+    $('tourTxt').innerHTML = p.texto();
+    $('tourPasso').textContent = (i + 1) + ' de ' + TOUR.length;
+    $('tourVoltar').style.visibility = i ? 'visible' : 'hidden';
+    $('tourProx').textContent = i === TOUR.length - 1 ? 'Concluir ✔' : 'Próximo';
+    setTimeout(posicionarTour, p.aba ? 60 : 0);
+  }
+
+  function posicionarTour() {
+    if (tourI < 0) return;
+    const p = TOUR[tourI], foco = $('tourFoco'), bal = $('tourBalao');
+    const W = window.innerWidth, H = window.innerHeight, m = 12;
+    const el = p.alvo && document.querySelector(p.alvo);
+    let r = el && el.getBoundingClientRect();
+    if (el && p.alvo.indexOf('#card') === 0) el.scrollIntoView({ block: 'nearest' }), r = el.getBoundingClientRect();
+    if (!r || !r.width) {                       // sem alvo: balão no centro
+      foco.style.cssText = `left:${W / 2}px;top:${H / 2}px;width:0;height:0`;
+      bal.style.left = Math.max(m, (W - bal.offsetWidth) / 2) + 'px';
+      bal.style.top = Math.max(m, (H - bal.offsetHeight) / 2) + 'px';
+      return;
+    }
+    const pad = 6, x = Math.max(2, r.left - pad), y = Math.max(2, r.top - pad);
+    const w = Math.min(W - x - 2, r.width + pad * 2), h = Math.min(H - y - 2, r.height + pad * 2);
+    foco.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
+    const bw = bal.offsetWidth, bh = bal.offsetHeight;
+    const cabe = { baixo: y + h + m + bh < H, cima: y - m - bh > 0, dir: x + w + m + bw < W, esq: x - m - bw > 0 };
+    let L, T;
+    if (cabe.dir) { L = x + w + m; T = y; }
+    else if (cabe.baixo) { L = x; T = y + h + m; }
+    else if (cabe.cima) { L = x; T = y - m - bh; }
+    else if (cabe.esq) { L = x - m - bw; T = y; }
+    else { L = W - bw - 24; T = H - bh - 24; }   // alvo grande (uma aba inteira): balão no canto
+    bal.style.left = Math.min(Math.max(m, L), W - bw - m) + 'px';
+    bal.style.top = Math.min(Math.max(m, T), H - bh - m) + 'px';
+  }
+
+  function fecharTour(concluiu) {
+    tourI = -1;
+    ['tourBloqueio', 'tourFoco', 'tourBalao'].forEach(i => $(i) && ($(i).style.display = 'none'));
+    google.script.run.marcarTourVistoPainel();
+    if (PERFIL && !PERFIL.cadastrado) mostrar('cfg');
+  }
+
+  window.addEventListener('resize', posicionarTour);
+  document.addEventListener('keydown', e => {
+    if (tourI < 0) return;
+    if (e.key === 'ArrowRight' || e.key === 'Enter') passoTour(tourI + 1);
+    else if (e.key === 'ArrowLeft') passoTour(tourI - 1);
+    else if (e.key === 'Escape') fecharTour();
+  });
 </script>
 </body>
 </html>

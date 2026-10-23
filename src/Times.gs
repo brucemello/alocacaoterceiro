@@ -129,8 +129,26 @@ function obterPerfilPainel() {
     email: p.email || emailAtual_(), nome: p.nome, time: p.time, papel: p.papel, cadastrado: p.cadastrado,
     destinatarios: (p.destinatarios || []).join(', '), veTodos: veTodos_(p) || !p.time,
     admin: p.papel === 'Admin', times: listaTimes_(), token: origemToken_(),
-    semAdmin: !membros_().some(m => m.papel === 'Admin')
+    semAdmin: !membros_().some(m => m.papel === 'Admin'),
+    tourVisto: tourVisto_(), urlManual: urlManual_()
   };
+}
+
+/************************************************************
+ * TOUR GUIADO E MANUAL
+ ************************************************************/
+function tourVisto_() {
+  try { return PropertiesService.getUserProperties().getProperty('TOUR_VISTO') === '1'; } catch (e) { return true; }
+}
+
+function marcarTourVistoPainel() {
+  PropertiesService.getUserProperties().setProperty('TOUR_VISTO', '1');
+  return true;
+}
+
+/** Link do manual do TL (propriedade URL_MANUAL ou CONFIG.URL_MANUAL). */
+function urlManual_() {
+  return PropertiesService.getScriptProperties().getProperty('URL_MANUAL') || CONFIG.URL_MANUAL || '';
 }
 
 /** O próprio usuário cadastra/atualiza nome, time e destinatários extras. */

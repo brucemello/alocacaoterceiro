@@ -114,6 +114,12 @@ A mesma planilha atende vários times. A aba **`Times`** guarda e-mail, nome, ti
 **Novo TL:** precisa de acesso de Editor à planilha. Ele abre o painel, vai em ⚙️ Configurações, salva o perfil
 (nome + time) e o próprio token, e testa a conexão.
 
+## Tour guiado e manual
+
+Na primeira vez que cada pessoa abre o painel, um **tour guiado** de 8 passos mostra perfil, token, Projeto Interno,
+Agenda, Controle e Acessos (fica marcado por usuário). Para rever, use o botão **❓ Tour** no topo. O último passo
+traz o link do **manual do TL** (`CONFIG.URL_MANUAL` ou a propriedade de script `URL_MANUAL`).
+
 ## Uso na planilha
 
 Menu **🦇 Agente A.I.F.R.E.A.D → 🧭 Abrir Painel**.
