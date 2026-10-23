@@ -331,3 +331,40 @@ function marcarRascunhoGen_(nomeAba, id, key, url) {
     aba.getRange(linha, 6).setFormula(`=HYPERLINK("${url}"; "${key}")`);
   } catch (e) {}
 }
+
+/************************************************************
+ * COMBOS DO FORMULÁRIO: projetos e squads a partir do Controle
+ ************************************************************/
+function listarProjetosParaAgenda() {
+  const res = { projetos: [], squads: [] };
+  const ss = planilha_();
+  if (!ss.getSheetByName(CONFIG_CT.ABA)) return res;
+  const aba = abaControle_();
+  if (aba.getLastRow() < 2) return res;
+
+  const dados = aba.getRange(2, 1, aba.getLastRow() - 1, COLS_CT.length).getDisplayValues();
+  const g = (l, c) => String(l[C_CT[c] - 1] || '').trim();
+  const cancelada = l => g(l, 'Status Controle') === 'Cancelado' || /cancel/i.test(g(l, 'Status Jira'));
+  const porCodigo = {}, pendentes = [], squads = {};
+
+  dados.forEach(l => {
+    if (!g(l, 'Issue') || cancelada(l)) return;
+    const squad = g(l, 'Squad');
+    if (squad) squads[squad.toLowerCase()] = squads[squad.toLowerCase()] || squad;
+    const codigo = g(l, 'Código Projeto (PSA)').toUpperCase();
+    const item = { codigo: codigo, nome: g(l, 'Projeto'), squad: squad, issue: g(l, 'Issue'),
+      tipo: g(l, 'Tipo'), status: g(l, 'Status Controle') };
+    if (codigo) {
+      // Projeto Interno tem prioridade sobre Agendas do mesmo código (nome e squad "oficiais")
+      const atual = porCodigo[codigo];
+      if (!atual || (atual.tipo !== 'Projeto Interno' && item.tipo === 'Projeto Interno')) porCodigo[codigo] = item;
+    } else if (item.tipo === 'Projeto Interno') {
+      pendentes.push(item);
+    }
+  });
+
+  const ordenar = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
+  res.projetos = Object.keys(porCodigo).map(k => porCodigo[k]).sort(ordenar).concat(pendentes.sort(ordenar));
+  res.squads = Object.keys(squads).map(k => squads[k]).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return res;
+}

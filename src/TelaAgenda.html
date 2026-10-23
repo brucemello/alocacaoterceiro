@@ -55,6 +55,11 @@
     .rascunhos select { width:auto; flex:1; max-width:560px; }
     .faltando { outline:2px solid #de350b; outline-offset:3px; border-radius:4px; background:#fff4f2; }
     .faltando > label { color:#bf2600; }
+    .sel-projeto { display:grid; grid-template-columns: auto 1fr auto; gap:6px 8px; align-items:center; background:#f7faff;
+      border:1px solid #deebff; border-radius:4px; padding:8px 10px; margin-bottom:10px; }
+    .sel-projeto label { font-weight:bold; font-size:12px; }
+    .sel-projeto .dica { grid-column: 1 / -1; }
+    .preenchido { background:#e3fcef !important; transition: background 1.2s; }
     .titulo-box { background:#fffae6; border:1px solid #ffe380; padding:7px 10px; border-radius:4px; margin-top:8px; font-size:12px; }
   </style>
 </head>
@@ -93,13 +98,20 @@
   <div class="titulo-box">Título: <b id="tituloAoVivo">Criação de Agenda - Projeto : … - Recurso: …</b></div>
 
   <h3>Tabela 01 - Dados da Alocação</h3>
+  <div class="sel-projeto">
+    <label for="selProjeto">📂 Projeto do Controle</label>
+    <select id="selProjeto"><option value="">— carregando projetos… —</option></select>
+    <button class="secundario mini" onclick="carregarProjetosControle(true)" title="Recarregar a lista">↻</button>
+    <div class="dica" id="dicaProjeto">Escolha um projeto para preencher Código, Nome do Projeto e Squad. Ou digite nos campos abaixo.</div>
+  </div>
+  <datalist id="dlCodigos"></datalist><datalist id="dlNomes"></datalist><datalist id="dlSquads"></datalist>
   <div class="grid">
     <div class="campo az"><label>Código Recurso (PSA)</label><input id="codigoRecurso" placeholder="999999"></div>
     <div class="campo az"><label>Nome Completo do Recurso <span style="font-weight:normal;color:#6b778c">(vai para o título)</span></label><input id="nomeRecurso"></div>
-    <div class="campo az"><label>Código do Projeto (PSA) <span style="font-weight:normal;color:#6b778c">(vai para o título)</span></label><input id="codigoProjeto" placeholder="D000099999999" style="text-transform:uppercase"></div>
-    <div class="campo az"><label>Nome do Projeto (PSA)</label><input id="nomeProjeto"></div>
+    <div class="campo az"><label>Código do Projeto (PSA) <span style="font-weight:normal;color:#6b778c">(vai para o título)</span></label><input id="codigoProjeto" list="dlCodigos" placeholder="D000099999999" style="text-transform:uppercase" autocomplete="off"></div>
+    <div class="campo az"><label>Nome do Projeto (PSA)</label><input id="nomeProjeto" list="dlNomes" autocomplete="off"></div>
     <div class="campo vd"><label>Nome da Consultoria <span style="font-weight:normal;color:#6b778c">(para consultores externos)</span></label><input id="consultoria"></div>
-    <div class="campo az"><label>Nome do SQUAD onde o recurso estará alocado</label><input id="squad"></div>
+    <div class="campo az"><label>Nome do SQUAD onde o recurso estará alocado</label><input id="squad" list="dlSquads" autocomplete="off"></div>
     <div class="campo vd"><label>Valor hora negociado da alocação (R$)</label><input id="valorHora" inputmode="decimal" placeholder="999,99">
       <div class="dica">Obrigatório para Consultores Externos. Usado no cálculo do Valor Total.</div></div>
     <div class="campo az"><label>Papel/Categoria do Recurso (PSA)</label><input id="papel"></div>
@@ -161,6 +173,7 @@
 
 <script>
   const $ = id => document.getElementById(id);
+  var PROJETOS = {};   // projetos do Controle para os combos
   var CFG = null, rascunhoId = '', alterado = false, tipoDesejado = '', camposDesejados = {}, defsCamposProjeto = [];
   const CAMPOS_TEXTO = ['projetoJira', 'epico', 'codigoRecurso', 'nomeRecurso', 'codigoProjeto', 'nomeProjeto',
     'consultoria', 'squad', 'valorHora', 'papel', 'dataDe', 'dataAte', 'email', 'naoAlocar', 'observacao',
@@ -219,7 +232,57 @@
     carregarTipos();
     aplicarModoAuto();
     carregarListaRascunhos();
+    carregarProjetosControle();
+    $('selProjeto').addEventListener('change', () => aplicarProjeto(PROJETOS[$('selProjeto').value]));
+    $('codigoProjeto').addEventListener('change', () => {
+      const p = Object.values(PROJETOS).find(x => x.codigo === $('codigoProjeto').value.trim().toUpperCase());
+      if (p) aplicarProjeto(p, true);
+    });
+    $('nomeProjeto').addEventListener('change', () => {
+      const p = Object.values(PROJETOS).find(x => x.nome.toLowerCase() === $('nomeProjeto').value.trim().toLowerCase());
+      if (p && !$('codigoProjeto').value.trim()) aplicarProjeto(p, true);
+    });
   }).withFailureHandler(e => mostrar('Erro ao carregar: ' + e.message, 'erro')).obterConfigAgenda();
+
+  // ---------- Projetos do Controle (combos) ----------
+  function carregarProjetosControle(manual) {
+    google.script.run.withSuccessHandler(r => {
+      PROJETOS = {};
+      const comCodigo = r.projetos.filter(p => p.codigo), pendentes = r.projetos.filter(p => !p.codigo);
+      comCodigo.forEach(p => PROJETOS[p.codigo] = p);
+      $('selProjeto').innerHTML = '<option value="">— selecione um projeto —</option>' +
+        (comCodigo.length ? '<optgroup label="Com código PSA">' + comCodigo.map(p =>
+          `<option value="${escHtml(p.codigo)}">${escHtml(p.codigo)} · ${escHtml(p.nome)}${p.squad ? ' · ' + escHtml(p.squad) : ''}</option>`).join('') + '</optgroup>' : '') +
+        (pendentes.length ? '<optgroup label="⏳ Aguardando código PSA (ainda não dá para agendar)">' + pendentes.map(p =>
+          `<option disabled>${escHtml(p.nome)} · ${escHtml(p.issue)} · ${escHtml(p.status || '')}</option>`).join('') + '</optgroup>' : '');
+      $('dlCodigos').innerHTML = comCodigo.map(p => `<option value="${escHtml(p.codigo)}">${escHtml(p.nome)}</option>`).join('');
+      $('dlNomes').innerHTML = comCodigo.map(p => `<option value="${escHtml(p.nome)}">${escHtml(p.codigo)}</option>`).join('');
+      $('dlSquads').innerHTML = r.squads.map(s => `<option value="${escHtml(s)}">`).join('');
+      const atual = $('codigoProjeto').value.trim().toUpperCase();
+      if (PROJETOS[atual]) $('selProjeto').value = atual;
+      $('dicaProjeto').textContent = comCodigo.length
+        ? `${comCodigo.length} projeto(s) com código PSA no Controle` + (pendentes.length ? ` · ${pendentes.length} aguardando código` : '') + '. Também dá para digitar nos campos abaixo.'
+        : 'Nenhum projeto com código PSA no Controle ainda. Atualize o Controle (🔄) ou digite o código abaixo.';
+      if (manual) mostrar('Lista de projetos atualizada.', 'ok');
+    }).withFailureHandler(e => {
+      $('selProjeto').innerHTML = '<option value="">— não consegui ler o Controle —</option>';
+      $('dicaProjeto').textContent = e.message;
+    }).listarProjetosParaAgenda();
+  }
+
+  function aplicarProjeto(p, soCompletar) {
+    if (!p) return;
+    const campos = { codigoProjeto: p.codigo, nomeProjeto: p.nome, squad: p.squad };
+    Object.keys(campos).forEach(id => {
+      if (!campos[id]) return;
+      if (soCompletar && $(id).value.trim()) return;   // digitando: só completa o que estiver vazio
+      $(id).value = campos[id];
+      $(id).classList.add('preenchido'); setTimeout(() => $(id).classList.remove('preenchido'), 1200);
+      const f = $(id).closest('.faltando'); if (f) f.classList.remove('faltando');
+    });
+    $('selProjeto').value = p.codigo;
+    invalidar(); marcarAlterado(); atualizarTitulo();
+  }
 
   function ligarEventos() {
     const doForm = e => !e.target.closest('.rascunhos');
@@ -385,6 +448,7 @@
     carregarTipos();
     aplicarModoAuto();
     atualizarTitulo();
+    $('selProjeto').value = PROJETOS[String(d.codigoProjeto || '').toUpperCase()] ? String(d.codigoProjeto).toUpperCase() : '';
   }
 
   // ---------- rascunhos ----------
