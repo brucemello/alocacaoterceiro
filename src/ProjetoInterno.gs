@@ -224,22 +224,7 @@ function salvarRascunhoPI(dados, rascunhoId) {
 }
 
 function listarRascunhosPI() {
-  const aba = planilha_().getSheetByName(ABA_RASCUNHOS_PI);
-  if (!aba || aba.getLastRow() < 2) return [];
-  return aba.getRange(2, 1, aba.getLastRow() - 1, 6).getDisplayValues()
-    .map((r, i) => ({ r: r, data: aba.getRange(i + 2, 2).getValue() }))
-    .filter(x => x.r[0])
-    .map(x => ({
-      id: String(x.r[0]),
-      quando: x.data instanceof Date ? x.data.getTime() : 0,
-      quandoTxt: x.r[1],
-      usuario: String(x.r[2] || '').split('@')[0],
-      nome: String(x.r[3] || ''),
-      status: String(x.r[4] || ''),
-      issue: String(x.r[5] || '')
-    }))
-    .sort((a, b) => b.quando - a.quando)
-    .slice(0, 100);
+  return listarRascunhosGen_(ABA_RASCUNHOS_PI);   // só os rascunhos do meu time
 }
 
 function carregarRascunhoPI(id) {

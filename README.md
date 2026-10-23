@@ -32,6 +32,7 @@ src/
   Agenda.gs                Agenda (descrição, validação, criação, rascunhos)
   Controle.gs              aba de controle, atualização, importação, analistas
   Painel.gs                painel central e configurações
+  Times.gs                 times, perfis, papéis e token por usuário
   TelaPainel.html          painel com abas (carrega as telas abaixo)
   TelaControle.html        aba Controle
   TelaProjetoInterno.html  formulário de Projeto Interno
@@ -95,6 +96,23 @@ Toda **segunda-feira às 8h** (ative em ⚙️ Configurações → *Relatório s
 um e-mail com: Projetos (orçado), Agendas (alocado) e Saldo; tabela de projetos com alocado/saldo; agendas;
 pendências de solicitação; agendas terminando em 30 dias; acessos de terceiros em andamento/terminando.
 Os valores de Agenda **não** são somados aos de Projeto (a agenda consome o orçamento do projeto).
+
+## Vários times (cada TL com o seu token)
+
+A mesma planilha atende vários times. A aba **`Times`** guarda e-mail, nome, time, papel e e-mails extras.
+
+- **Papéis:** **TL** vê só o próprio time; **Gestor** e **Admin** veem todos (seletor de time no Controle e
+  em Acessos). O Admin também cadastra membros. O primeiro a salvar o perfil vira Admin.
+- **Token:** cada pessoa salva o próprio PAT em ⚙️ Configurações → *Meu token* (UserProperties, só ela lê),
+  e as issues saem no nome dela. O **token do sistema** (ScriptProperties) atende as rotinas automáticas
+  e quem ainda não salvou o próprio.
+- **Coluna `Time`:** fica no Controle e em Acessos. Linhas antigas são preenchidas pelo time do solicitante.
+- **E-mails:** os avisos de mudança e o relatório semanal saem por time (membros do time + e-mails extras).
+  Os gestores recebem um consolidado.
+- ⚠️ A separação é só de **visualização**: quem tem acesso à planilha consegue abrir as abas.
+
+**Novo TL:** precisa de acesso de Editor à planilha. Ele abre o painel, vai em ⚙️ Configurações, salva o perfil
+(nome + time) e o próprio token, e testa a conexão.
 
 ## Uso na planilha
 

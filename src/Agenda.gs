@@ -322,6 +322,11 @@ function salvarRascunhoGen_(nomeAba, dados, rascunhoId, ident, titulo, descricao
 }
 
 function listarRascunhosGen_(nomeAba) {
+  const esc = escopoTime_('');
+  return listarRascunhosTodos_(nomeAba).filter(r => esc.filtro(timeDoUsuario_(r.email))).slice(0, 100);
+}
+
+function listarRascunhosTodos_(nomeAba) {
   const aba = planilha_().getSheetByName(nomeAba);
   if (!aba || aba.getLastRow() < 2) return [];
   const n = aba.getLastRow() - 1;
@@ -334,12 +339,13 @@ function listarRascunhosGen_(nomeAba) {
       quando: x.data instanceof Date ? x.data.getTime() : 0,
       quandoTxt: x.r[1],
       usuario: String(x.r[2] || '').split('@')[0],
+      email: String(x.r[2] || ''),
       nome: String(x.r[3] || ''),
       status: String(x.r[4] || ''),
       issue: String(x.r[5] || '')
     }))
     .sort((a, b) => b.quando - a.quando)
-    .slice(0, 100);
+    .slice(0, 300);
 }
 
 function carregarRascunhoGen_(nomeAba, id) {
@@ -369,7 +375,9 @@ function listarProjetosParaAgenda() {
   const aba = abaControle_();
   if (aba.getLastRow() < 2) return res;
 
-  const dados = aba.getRange(2, 1, aba.getLastRow() - 1, COLS_CT.length).getDisplayValues();
+  const esc = escopoTime_('');
+  const dados = aba.getRange(2, 1, aba.getLastRow() - 1, COLS_CT.length).getDisplayValues()
+    .filter(l => esc.filtro(String(l[C_CT['Time'] - 1] || '').trim()));
   const g = (l, c) => String(l[C_CT[c] - 1] || '').trim();
   const cancelada = l => g(l, 'Status Controle') === 'Cancelado' || /cancel/i.test(g(l, 'Status Jira'));
   const porCodigo = {}, pendentes = [], squads = {};

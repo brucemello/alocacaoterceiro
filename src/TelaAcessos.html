@@ -39,7 +39,9 @@
     .linha { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
     .linha input { flex:1; min-width:180px; }
     .filtros { display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
-    #busca { min-width:260px; width:auto; } #fStatus { width:auto; }
+    #busca { min-width:260px; width:auto; }
+    #selTime { width:auto; font-weight:bold; color:#1f4e78; }
+    .aviso-perfil { display:none; background:#fffae6; border:1px solid #ffe380; border-radius:4px; padding:8px 10px; margin-bottom:8px; } #fStatus { width:auto; }
     .tabela { border:1px solid var(--borda); border-radius:6px; overflow:auto; max-height:calc(100vh - 230px); }
     table { border-collapse:collapse; width:100%; min-width:1300px; }
     th { position:sticky; top:0; background:var(--azul); color:#fff; text-align:left; padding:7px 8px; font-size:11px; z-index:1; white-space:nowrap; }
@@ -111,7 +113,9 @@
 
   <!-- ===================== ACOMPANHAMENTO ===================== -->
   <div class="kpis" id="kpis"></div>
+  <div id="avisoPerfil" class="aviso-perfil">👤 Cadastre seu perfil (nome e time) em <b>⚙️ Configurações → Meu perfil</b> para separar as solicitações por time.</div>
   <div class="filtros">
+    <select id="selTime" title="Time"></select>
     <select id="fStatus"><option value="">Todos os status</option></select>
     <label style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="fInativos" style="width:auto"> mostrar concluídos/revogados/cancelados</label>
     <input id="busca" placeholder="🔎 Buscar recurso, projeto, chamado, acesso…">
@@ -142,15 +146,30 @@
   function carregar() {
     google.script.run.withSuccessHandler(d => {
       DADOS = d;
+      montarSeletorTime(d);
       if (!$('checks').children.length) {
         $('checks').innerHTML = d.sistemas.map(s => `<label><input type="checkbox" value="${esc(s)}"> ${esc(s)}</label>`).join('');
         $('fStatus').innerHTML = '<option value="">Todos os status</option>' + d.statusOpcoes.map(s => `<option>${esc(s)}</option>`).join('');
       }
       render();
     }).withFailureHandler(e => { $('corpo').innerHTML = `<tr><td colspan="9" class="vazio" style="color:#bf2600">${esc(e.message)}</td></tr>`; })
-      .obterDadosAcessos();
+      .obterDadosAcessos($('selTime').value || '');
   }
   window.addEventListener('message', ev => { if (ev.data && ev.data.__painel === 'shown') { carregar(); carregarRecursos(); } });
+
+  // ---------- seletor de time ----------
+  function montarSeletorTime(d) {
+    const sel = $('selTime');
+    const opcoes = [];
+    if (d.podeVerTodos) opcoes.push(['*', '🌐 Todos os times']);
+    (d.times || []).forEach(t => { if (d.podeVerTodos || t === d.meuTime) opcoes.push([t, '👥 ' + t + (t === d.meuTime ? ' (meu)' : '')]); });
+    if (!opcoes.length) opcoes.push([d.time || '*', d.time && d.time !== '*' ? '👥 ' + d.time : '🌐 Todos']);
+    sel.innerHTML = opcoes.map(o => `<option value="${esc(o[0])}">${esc(o[1])}</option>`).join('');
+    sel.value = d.time;
+    sel.disabled = opcoes.length < 2;
+    $('avisoPerfil').style.display = d.meuTime ? 'none' : 'block';
+  }
+  document.getElementById('selTime').addEventListener('change', () => carregar());
 
   function carregarRecursos(manual) {
     google.script.run.withSuccessHandler(lista => {

@@ -62,14 +62,14 @@ function configurarTokenJira() {
   const resp = ui.prompt('Configuração de Credenciais',
     'Insira seu Personal Access Token (PAT) do Jira:', ui.ButtonSet.OK_CANCEL);
   if (resp.getSelectedButton() === ui.Button.OK && resp.getResponseText().trim()) {
-    PropertiesService.getScriptProperties().setProperty('JIRA_TOKEN', resp.getResponseText().trim());
-    ui.alert('Sucesso', 'Token salvo. Agora use "Testar Conexão Jira".', ui.ButtonSet.OK);
+    PropertiesService.getUserProperties().setProperty('JIRA_TOKEN', resp.getResponseText().trim());
+    ui.alert('Sucesso', 'Seu token pessoal foi salvo (só você tem acesso a ele). Agora use "Testar Conexão Jira".', ui.ButtonSet.OK);
   }
 }
 
 function testarConexaoJira() {
   const ui = SpreadsheetApp.getUi();
-  const token = PropertiesService.getScriptProperties().getProperty('JIRA_TOKEN');
+  const token = tokenJira_();
   if (!token) {
     ui.alert('⚠️ Token ausente', 'Configure o token no menu "Configurar Token Jira".', ui.ButtonSet.OK);
     return;

@@ -42,6 +42,8 @@
     .seg button.on { background:var(--azul); color:#fff; }
     select, input { padding:6px 7px; border:1px solid #c1c7d0; border-radius:4px; font-size:12px; font-family:inherit; }
     #busca { min-width:260px; }
+    #selTime { font-weight:bold; color:#1f4e78; }
+    .aviso-perfil { display:none; background:#fffae6; border:1px solid #ffe380; border-radius:4px; padding:8px 10px; margin-bottom:8px; }
     .tabela { border:1px solid var(--borda); border-radius:6px; overflow:auto; max-height:calc(100vh - 290px); }
     table { border-collapse:collapse; width:100%; min-width:1760px; }
     th { position:sticky; top:0; background:var(--azul); color:#fff; text-align:left; padding:7px 8px; font-size:11px; z-index:1; white-space:nowrap; cursor:pointer; }
@@ -84,7 +86,10 @@
   <div class="kpis" id="kpis"></div>
   <div class="valores" id="valores"></div>
 
+  <div id="avisoPerfil" class="aviso-perfil">👤 Você ainda não tem time cadastrado. Vá em <b>⚙️ Configurações → Meu perfil</b>, informe nome e time,
+    e salve o <b>seu token</b> do Jira — assim as solicitações ficam separadas por time e as issues saem no seu nome.</div>
   <div class="filtros">
+    <select id="selTime" title="Time"></select>
     <div class="seg" id="segTipo">
       <button data-t="" class="on">Todos</button>
       <button data-t="Projeto Interno">🏗️ Projetos Internos</button>
@@ -157,14 +162,30 @@
     if (!silencioso) $('corpo').innerHTML = '<tr><td colspan="16" class="vazio">Carregando…</td></tr>';
     google.script.run.withSuccessHandler(d => {
       DADOS = d;
+      montarSeletorTime(d);
       const sel = $('fStatus'), atual = sel.value;
       sel.innerHTML = '<option value="">Todos os status de controle</option>' +
         d.statusOpcoes.map(s => `<option${s === atual ? ' selected' : ''}>${esc(s)}</option>`).join('');
       render();
     }).withFailureHandler(e => {
       $('corpo').innerHTML = `<tr><td colspan="16" class="vazio" style="color:#bf2600">Erro ao ler o controle: ${esc(e.message)}</td></tr>`;
-    }).obterDadosControle();
+    }).obterDadosControle($('selTime').value || '');
   }
+
+
+  // ---------- seletor de time ----------
+  function montarSeletorTime(d) {
+    const sel = $('selTime');
+    const opcoes = [];
+    if (d.podeVerTodos) opcoes.push(['*', '🌐 Todos os times']);
+    (d.times || []).forEach(t => { if (d.podeVerTodos || t === d.meuTime) opcoes.push([t, '👥 ' + t + (t === d.meuTime ? ' (meu)' : '')]); });
+    if (!opcoes.length) opcoes.push([d.time || '*', d.time && d.time !== '*' ? '👥 ' + d.time : '🌐 Todos']);
+    sel.innerHTML = opcoes.map(o => `<option value="${esc(o[0])}">${esc(o[1])}</option>`).join('');
+    sel.value = d.time;
+    sel.disabled = opcoes.length < 2;
+    $('avisoPerfil').style.display = d.meuTime ? 'none' : 'block';
+  }
+  document.getElementById('selTime').addEventListener('change', () => carregar());
 
   // Recarrega quando a aba do painel volta a ficar visível (ex.: após criar uma issue)
   window.addEventListener('message', ev => { if (ev.data && ev.data.__painel === 'shown') carregar(true); });

@@ -71,13 +71,26 @@ function obterHtmlTelaPainel(nome) {
 /************************************************************
  * CONTROLE
  ************************************************************/
-function obterDadosControle() {
-  const aba = planilha_().getSheetByName(CONFIG_CT.ABA) ? abaControle_() : null;   // abaControle_ acrescenta colunas novas
-  const base = {
-    linhas: [], statusOpcoes: CONFIG_CT.STATUS_CONTROLE,
-    autoAtivo: autoAtualizacaoAtiva_(), jiraUrl: CONFIG.JIRA_BASE_URL
+/**
+ * Dados do Controle para o painel, filtrados pelo time.
+ * timeSel: '' = meu time · '*' = todos (Gestor/Admin) · nome de um time.
+ */
+function obterDadosControle(timeSel) {
+  const esc = escopoTime_(timeSel);
+  const todas = obterLinhasControle_();
+  return {
+    linhas: todas.filter(l => esc.filtro(l.time)),
+    statusOpcoes: CONFIG_CT.STATUS_CONTROLE, autoAtivo: autoAtualizacaoAtiva_(), jiraUrl: CONFIG.JIRA_BASE_URL,
+    time: esc.time, podeVerTodos: esc.podeVerTodos, times: listaTimes_(),
+    meuTime: esc.perfil.time, meuNome: esc.perfil.nome, cadastrado: esc.perfil.cadastrado
   };
-  if (!aba || aba.getLastRow() < 2) return base;
+}
+
+/** Todas as linhas do Controle (sem filtro) — uso interno (relatórios, e-mails). */
+function obterLinhasControle_() {
+  const aba = planilha_().getSheetByName(CONFIG_CT.ABA) ? abaControle_() : null;   // abaControle_ acrescenta colunas novas
+  const base = { linhas: [] };
+  if (!aba || aba.getLastRow() < 2) return [];
 
   const n = aba.getLastRow() - 1;
   const txt = aba.getRange(2, 1, n, COLS_CT.length).getDisplayValues();
@@ -100,10 +113,11 @@ function obterDadosControle() {
       linkSolic: (String(forms[i][0] || '').match(/HYPERLINK\("([^"]+)"/) || [])[1] || '',
       statusControle: g('Status Controle'), obs: g('Observações'), atualizado: g('Última atualização'),
       ticket: g('Nº Ticket'), statusTicket: g('Status Ticket'), ultimaResposta: g('Última resposta'),
-      linkTicket: (String(formsTk[i][0] || '').match(/HYPERLINK\("([^"]+)"/) || [])[1] || ''
+      linkTicket: (String(formsTk[i][0] || '').match(/HYPERLINK\("([^"]+)"/) || [])[1] || '',
+      time: g('Time')
     };
   }).filter(l => l.issue);
-  return base;
+  return base.linhas;
 }
 
 /** Edita um campo do controle a partir do painel (só os campos manuais). */
@@ -151,7 +165,9 @@ function autoAtualizacaoAtiva_() {
 
 function statusConfigPainel() {
   return {
-    temToken: !!PropertiesService.getScriptProperties().getProperty('JIRA_TOKEN'),
+    temToken: !!tokenJira_(),
+    origemToken: origemToken_(),
+    perfil: obterPerfilPainel(),
     autoAtivo: autoAtualizacaoAtiva_(),
     aberturaAuto: aberturaAutomaticaAtiva_(),
     relatorioAtivo: relatorioSemanalAtivo_(),
@@ -163,12 +179,7 @@ function statusConfigPainel() {
   };
 }
 
-function salvarTokenPainel(token) {
-  token = String(token || '').trim();
-  if (token.length < 10) throw new Error('Token muito curto. Cole o Personal Access Token completo.');
-  PropertiesService.getScriptProperties().setProperty('JIRA_TOKEN', token);
-  return true;
-}
+function salvarTokenPainel(token) { return salvarTokenPessoalPainel(token); }
 
 function testarConexaoPainel() {
   const d = chamarJiraApiCriacao_('/rest/api/2/myself', 'get');

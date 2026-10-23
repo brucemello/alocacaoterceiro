@@ -25,13 +25,21 @@ const CONFIG_AC = {
 
 const COLS_AC = ['ID', 'Criado em', 'Solicitante', 'Recurso', 'Código Recurso (PSA)', 'E-mail do Recurso', 'Consultoria',
   'Código Projeto (PSA)', 'Projeto', 'Squad', 'Período De', 'Período Até', 'Acessos', 'Justificativa',
-  'Nº Chamado', 'Status', 'Observações', 'Issue Agenda', 'Última atualização'];
+  'Nº Chamado', 'Status', 'Observações', 'Issue Agenda', 'Última atualização', 'Time'];
 const C_AC = {}; COLS_AC.forEach((n, i) => C_AC[n] = i + 1);
 
 function abaAcessos_() {
   const ss = planilha_();
   let aba = ss.getSheetByName(CONFIG_AC.ABA);
-  if (aba) return aba;
+  if (aba) {                                   // planilhas antigas ganham as colunas novas no fim
+    const atual = aba.getLastColumn();
+    if (atual < COLS_AC.length) {
+      if (aba.getMaxColumns() < COLS_AC.length) aba.insertColumnsAfter(aba.getMaxColumns(), COLS_AC.length - aba.getMaxColumns());
+      aba.getRange(1, atual + 1, 1, COLS_AC.length - atual).setValues([COLS_AC.slice(atual)])
+        .setFontWeight('bold').setBackground('#1f4e78').setFontColor('#ffffff');
+    }
+    return aba;
+  }
   aba = ss.insertSheet(CONFIG_AC.ABA);
   aba.getRange(1, 1, 1, COLS_AC.length).setValues([COLS_AC])
     .setFontWeight('bold').setBackground('#1f4e78').setFontColor('#ffffff').setWrap(true).setVerticalAlignment('middle');
@@ -56,6 +64,7 @@ function abaAcessos_() {
  ************************************************************/
 function listarRecursosParaAcesso() {
   const ss = planilha_();
+  const esc = escopoTime_('');
   const porIssue = {}, lista = [];
 
   // 1) Rascunhos de agenda: têm e-mail, código do recurso e consultoria
@@ -64,7 +73,7 @@ function listarRecursosParaAcesso() {
     rasc.getRange(2, 1, rasc.getLastRow() - 1, 9).getDisplayValues().forEach(r => {
       let d = {};
       try { d = JSON.parse(r[8] || '{}'); } catch (e) {}
-      if (!d.nomeRecurso) return;
+      if (!d.nomeRecurso || !esc.filtro(timeDoUsuario_(r[2]))) return;   // rascunhos do meu time
       const item = {
         recurso: d.nomeRecurso, codigoRecurso: d.codigoRecurso || '', email: d.email || '',
         consultoria: d.consultoria || '', codigoProjeto: String(d.codigoProjeto || '').toUpperCase(),
@@ -85,6 +94,7 @@ function listarRecursosParaAcesso() {
       dados.forEach((l, i) => {
         const g = c => txt[i][C_CT[c] - 1];
         if (g('Tipo') !== 'Agenda' || g('Status Controle') === 'Cancelado') return;
+        if (!esc.filtro(g('Time') || timeDoUsuario_(g('Solicitante')))) return;
         const issue = g('Issue').trim();
         const iso = v => v instanceof Date ? Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd') : '';
         const base = {
@@ -117,15 +127,17 @@ function listarRecursosParaAcesso() {
 /************************************************************
  * DADOS DA ABA, SALVAR E EDITAR
  ************************************************************/
-function obterDadosAcessos() {
+function obterDadosAcessos(timeSel) {
   const ss = planilha_();
+  const esc = escopoTime_(timeSel);
   const base = {
+    time: esc.time, podeVerTodos: esc.podeVerTodos, times: listaTimes_(), meuTime: esc.perfil.time,
     linhas: [], statusOpcoes: CONFIG_AC.STATUS, sistemas: CONFIG_AC.SISTEMAS, diasAviso: CONFIG_AC.DIAS_AVISO_FIM,
     urlPortal: PropertiesService.getScriptProperties().getProperty('URL_PORTAL_ACESSOS') || CONFIG_AC.URL_PORTAL,
     urlTicket: CONFIG_AC.URL_TICKET, urlHoracius: CONFIG_AC.URL_HORACIUS, jiraUrl: CONFIG.JIRA_BASE_URL, solicitante: ''
   };
   try { base.solicitante = Session.getActiveUser().getEmail() || ''; } catch (e) {}
-  const aba = ss.getSheetByName(CONFIG_AC.ABA);
+  const aba = ss.getSheetByName(CONFIG_AC.ABA) ? abaAcessos_() : null;
   if (!aba || aba.getLastRow() < 2) return base;
 
   const n = aba.getLastRow() - 1;
@@ -140,9 +152,10 @@ function obterDadosAcessos() {
       consultoria: g('Consultoria'), codigoProjeto: g('Código Projeto (PSA)'), projeto: g('Projeto'), squad: g('Squad'),
       de: g('Período De'), ate: g('Período Até'), ateTs: ate instanceof Date ? ate.getTime() : 0,
       acessos: g('Acessos'), justificativa: g('Justificativa'), chamado: g('Nº Chamado'), status: g('Status'),
-      obs: g('Observações'), issue: g('Issue Agenda'), atualizado: g('Última atualização')
+      obs: g('Observações'), issue: g('Issue Agenda'), atualizado: g('Última atualização'),
+      time: g('Time') || timeDoUsuario_(g('Solicitante'))
     };
-  }).filter(l => l.id);
+  }).filter(l => l.id && esc.filtro(l.time));
   return base;
 }
 
@@ -178,6 +191,7 @@ function salvarSolicitacaoAcesso(d) {
     set('Observações', linha ? aba.getRange(linha, C_AC['Observações']).getValue() : (d.obs || ''));
     set('Issue Agenda', d.issue ? `=HYPERLINK("${CONFIG.JIRA_BASE_URL}/browse/${d.issue}"; "${d.issue}")` : '');
     set('Última atualização', new Date());
+    set('Time', linha ? (aba.getRange(linha, C_AC['Time']).getValue() || perfil_().time) : perfil_().time);
 
     if (!linha) linha = aba.getLastRow() + 1;
     aba.getRange(linha, 1, 1, COLS_AC.length).setValues([valores]);

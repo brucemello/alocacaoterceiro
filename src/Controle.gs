@@ -26,7 +26,7 @@ const COLS_CT = [
   'Tipo', 'Issue', 'Aberta em', 'Solicitante', 'Código Projeto (PSA)', 'Projeto', 'Analista / Recurso',
   'Squad', 'Período De', 'Período Até', 'Valor Hora (R$)', 'Dias', 'Horas', 'Valor Total (R$)',
   'Status Jira', 'Nº Solicitação', 'Link Solicitação', 'Status Controle', 'Observações', 'Última atualização',
-  'Nº Ticket', 'Status Ticket', 'Última resposta'
+  'Nº Ticket', 'Status Ticket', 'Última resposta', 'Time'
 ];
 const C_CT = {}; COLS_CT.forEach((n, i) => C_CT[n] = i + 1);
 
@@ -113,9 +113,10 @@ function registrarNoControle_(tipo, key, url, dados, solicitante, criadaEm) {
 }
 
 /** Grava a linha a partir do resumo já calculado. Devolve false se a issue já estava no controle. */
-function registrarLinhaControle_(tipo, key, url, r, solicitante, criadaEm) {
+function registrarLinhaControle_(tipo, key, url, r, solicitante, criadaEm, time) {
   const aba = abaControle_();
   if (linhaControlePorIssue_(aba, key)) return false;
+  const timeLinha = time || timeDoUsuario_(solicitante) || perfil_().time || '';
   const linha = Array(COLS_CT.length).fill('');
   linha[C_CT['Tipo'] - 1] = tipo;
   linha[C_CT['Issue'] - 1] = `=HYPERLINK("${url}"; "${key}")`;
@@ -133,6 +134,7 @@ function registrarLinhaControle_(tipo, key, url, r, solicitante, criadaEm) {
   linha[C_CT['Valor Total (R$)'] - 1] = r.valorTotal;
   linha[C_CT['Status Controle'] - 1] = 'Aguardando solicitação';
   linha[C_CT['Última atualização'] - 1] = new Date();
+  linha[C_CT['Time'] - 1] = timeLinha;
 
   aba.getRange(aba.getLastRow() + 1, 1, 1, COLS_CT.length).setValues([linha]);
   return true;
@@ -326,6 +328,7 @@ function atualizarControleSilencioso_() {
   });
 
   try { res.analistasVinculados = vincularAnalistasDasAgendas_(aba); } catch (e) {}
+  try { preencherTimesVazios_(aba); } catch (e) {}
 
   // O que mudou nesta atualização (base para o e-mail)
   try {
@@ -531,7 +534,8 @@ function importarIssuesParaControle_(entrada) {
     const resumo = extrairResumoDaDescricao_(tipo, f.description || '', f.summary || '');
     const solicitante = (f.reporter && (f.reporter.name || f.reporter.displayName)) || '';
     const criada = f.created ? new Date(f.created) : '';
-    registrarLinhaControle_(tipo, is.key, `${CONFIG.JIRA_BASE_URL}/browse/${is.key}`, resumo, solicitante, criada);
+    registrarLinhaControle_(tipo, is.key, `${CONFIG.JIRA_BASE_URL}/browse/${is.key}`, resumo, solicitante, criada,
+      perfil_().time || timeDoUsuario_(solicitante));
     res.importadas.push(is.key);
     if (!resumo.encontrouLayout) res.semLayout.push(is.key);
   });
@@ -721,12 +725,27 @@ function gatilhoAtualizarControle() {
     }
     importarDosRascunhos_();
     const r = atualizarControleSilencioso_();
-    if (r.mudancas && r.mudancas.length) enviarEmailMudancas_(r.mudancas);
+    if (r.mudancas && r.mudancas.length) enviarEmailsMudancasPorTime_(r.mudancas);
   } catch (e) {
     Logger.log('Falha na atualização automática do Controle: ' + e.message);
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Linhas antigas (antes dos times) recebem o time de quem abriu a solicitação. */
+function preencherTimesVazios_(aba) {
+  if (aba.getLastRow() < 2) return 0;
+  const n = aba.getLastRow() - 1;
+  const sol = aba.getRange(2, C_CT['Solicitante'], n, 1).getDisplayValues();
+  const tim = aba.getRange(2, C_CT['Time'], n, 1).getDisplayValues();
+  let alterados = 0;
+  tim.forEach((t, i) => {
+    if (String(t[0]).trim() || !String(sol[i][0]).trim()) return;
+    const time = timeDoUsuario_(sol[i][0]);
+    if (time) { aba.getRange(i + 2, C_CT['Time']).setValue(time); alterados++; }
+  });
+  return alterados;
 }
 
 /** Compara a aba antes/depois e devolve as mudanças por issue. */
@@ -747,7 +766,7 @@ function compararControle_(antes, depois) {
     if (mud.length) {
       lista.push({
         issue: key, tipo: l[C_CT['Tipo'] - 1], projeto: l[C_CT['Projeto'] - 1],
-        analista: l[C_CT['Analista / Recurso'] - 1], mudancas: mud
+        analista: l[C_CT['Analista / Recurso'] - 1], time: l[C_CT['Time'] - 1] || '', mudancas: mud
       });
     }
   });
@@ -769,10 +788,26 @@ function configNotificacao_() {
   };
 }
 
-function enviarEmailMudancas_(mudancas, teste) {
+/** Um e-mail por time, para os membros do time; sem time → destinatários gerais. */
+function enviarEmailsMudancasPorTime_(mudancas) {
+  const cfg = configNotificacao_();
+  if (!cfg.ativo) return 0;
+  const grupos = {};
+  mudancas.forEach(m => { const t = String(m.time || '').trim(); (grupos[t] = grupos[t] || []).push(m); });
+  let enviados = 0;
+  Object.keys(grupos).forEach(t => {
+    const dest = t ? destinatariosDoTime_(t) : [];
+    try { if (enviarEmailMudancas_(grupos[t], false, dest.length ? dest : null, t)) enviados++; }
+    catch (e) { Logger.log('E-mail de mudanças (' + (t || 'sem time') + '): ' + e.message); }
+  });
+  return enviados;
+}
+
+function enviarEmailMudancas_(mudancas, teste, destinatarios, time) {
   const cfg = configNotificacao_();
   if (!teste && !cfg.ativo) return false;
-  if (!cfg.destinatarios.length) throw new Error('Nenhum destinatário configurado.');
+  const para = destinatarios && destinatarios.length ? destinatarios : cfg.destinatarios;
+  if (!para.length) throw new Error('Nenhum destinatário configurado.');
 
   const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const destaque = { 'Status Controle': '#0052cc', 'Código Projeto (PSA)': '#00875a', 'Status Jira': '#403294', 'Status Ticket': '#b65c00' };
@@ -796,7 +831,7 @@ function enviarEmailMudancas_(mudancas, teste) {
   const html = `<div style="font-family:Arial,sans-serif;color:#172b4d;max-width:720px">
     <div style="background:#1f4e78;color:#fff;padding:14px 16px;border-radius:6px 6px 0 0">
       <div style="font-size:16px;font-weight:bold">🦇 Agente A.I.F.R.E.A.D</div>
-      <div style="font-size:12px;color:#cfe0f3">Alocação de Recurso Terceiro · ${mudancas.length} solicitação(ões) com mudança${teste ? ' · E-MAIL DE TESTE' : ''}</div>
+      <div style="font-size:12px;color:#cfe0f3">Alocação de Recurso Terceiro${time ? ' · Time ' + esc(time) : ''} · ${mudancas.length} solicitação(ões) com mudança${teste ? ' · E-MAIL DE TESTE' : ''}</div>
     </div>
     <table cellpadding="0" cellspacing="0" style="width:100%;border:1px solid #dfe1e6;border-top:0;border-collapse:collapse">${blocos}</table>
     <div style="font-size:12px;margin-top:12px">
@@ -814,8 +849,8 @@ function enviarEmailMudancas_(mudancas, teste) {
     : `${mudancas.length} solicitações atualizadas`;
 
   MailApp.sendEmail({
-    to: cfg.destinatarios.join(','),
-    subject: `${teste ? '[TESTE] ' : ''}🦇 A.I.F.R.E.A.D · ${resumo}`,
+    to: para.join(','),
+    subject: `${teste ? '[TESTE] ' : ''}🦇 A.I.F.R.E.A.D${time ? ' · ' + time : ''} · ${resumo}`,
     body: texto,
     htmlBody: html,
     name: 'Agente A.I.F.R.E.A.D'

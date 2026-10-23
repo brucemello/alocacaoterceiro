@@ -52,10 +52,16 @@ function enviarRelatorioAgoraPainel() {
 /************************************************************
  * DADOS
  ************************************************************/
-function dadosRelatorio_() {
-  try { atualizarControleSilencioso_(); } catch (e) { Logger.log('Relatório: não atualizou o Jira: ' + e.message); }
+var filtroTimeRel_ = null;        // filtro de time do relatório em montagem (null = todos)
+var relatorioAtualizado_ = false;  // o Jira é consultado uma vez por envio
 
-  const linhas = obterDadosControle().linhas;
+function dadosRelatorio_() {
+  if (!relatorioAtualizado_) {
+    try { atualizarControleSilencioso_(); } catch (e) { Logger.log('Relatório: não atualizou o Jira: ' + e.message); }
+    relatorioAtualizado_ = true;
+  }
+
+  const linhas = obterLinhasControle_().filter(l => !filtroTimeRel_ || filtroTimeRel_(l.time));
   const cancelada = l => l.statusControle === 'Cancelado' || /cancel/i.test(l.statusJira || '');
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
   const ativos = linhas.filter(l => !cancelada(l));
@@ -99,8 +105,8 @@ function dadosRelatorio_() {
 
   let acessos = [];
   try {
-    const ac = obterDadosAcessos();
-    acessos = ac.linhas.filter(l => {
+    const ac = obterDadosAcessos(TODOS_TIMES);
+    acessos = ac.linhas.filter(l => !filtroTimeRel_ || filtroTimeRel_(l.time)).filter(l => {
       const d = l.ateTs ? Math.ceil((l.ateTs - Date.now()) / 86400000) : null;
       l.diasFim = d;
       return ['Aguardando abertura', 'Chamado aberto', 'Em atendimento', 'Liberar no Horacius'].indexOf(l.status) !== -1 ||
@@ -114,20 +120,56 @@ function dadosRelatorio_() {
 /************************************************************
  * E-MAIL
  ************************************************************/
+/**
+ * Envio: um relatório por time (para os membros do time) + o consolidado para Gestores/Admin.
+ * Manual ("enviar agora"): só para quem pediu, no escopo dele (o time dele, ou todos se Gestor/Admin).
+ */
 function enviarRelatorioSemanal_(manual) {
   const cfg = configNotificacao_();
-  if (!cfg.destinatarios.length) throw new Error('Nenhum destinatário configurado.');
-  const d = dadosRelatorio_();
   const hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  const norm = s => String(s || '').trim().toLowerCase();
+  relatorioAtualizado_ = false;
 
-  MailApp.sendEmail({
-    to: cfg.destinatarios.join(','),
-    subject: `🦇 A.I.F.R.E.A.D · Relatório semanal ${hoje} · Saldo ${moeda_(d.tot.saldo)} · ${d.tot.pct}% alocado`,
-    htmlBody: montarRelatorioHtml_(d, hoje, manual),
-    body: montarRelatorioTexto_(d, hoje),
-    name: 'Agente A.I.F.R.E.A.D'
+  const enviar = (para, titulo, filtro) => {
+    filtroTimeRel_ = filtro;
+    try {
+      const d = dadosRelatorio_();
+      d.timeTitulo = titulo;
+      MailApp.sendEmail({
+        to: para.join(','),
+        subject: `🦇 A.I.F.R.E.A.D · Relatório semanal${titulo ? ' · ' + titulo : ''} ${hoje} · Saldo ${moeda_(d.tot.saldo)} · ${d.tot.pct}% alocado`,
+        htmlBody: montarRelatorioHtml_(d, hoje, manual),
+        body: montarRelatorioTexto_(d, hoje),
+        name: 'Agente A.I.F.R.E.A.D'
+      });
+    } finally { filtroTimeRel_ = null; }
+  };
+
+  if (manual) {
+    const esc = escopoTime_('');
+    const eu = emailAtual_();
+    const para = eu ? [eu] : cfg.destinatarios;
+    if (!para.length) throw new Error('Nenhum destinatário configurado.');
+    enviar(para, esc.todos ? (listaTimes_().length ? 'Todos os times' : '') : esc.time, esc.todos ? null : esc.filtro);
+    return para;
+  }
+
+  const times = listaTimes_();
+  if (!times.length) {                               // ainda sem times cadastrados: comportamento antigo
+    if (!cfg.destinatarios.length) throw new Error('Nenhum destinatário configurado.');
+    enviar(cfg.destinatarios, '', null);
+    return cfg.destinatarios;
+  }
+  const enviados = [];
+  times.forEach(t => {
+    const dest = destinatariosDoTime_(t);
+    if (!dest.length) return;
+    try { enviar(dest, t, x => norm(x) === norm(t)); dest.forEach(e => enviados.push(e)); }
+    catch (e) { Logger.log('Relatório do time ' + t + ': ' + e.message); }
   });
-  return cfg.destinatarios;
+  const ges = gestores_().length ? gestores_() : cfg.destinatarios;
+  if (ges.length) { enviar(ges, 'Todos os times', null); ges.forEach(e => enviados.push(e)); }
+  return enviados.filter((v, i, a) => a.indexOf(v) === i);
 }
 
 function moeda_(n) {
@@ -187,7 +229,7 @@ function montarRelatorioHtml_(d, hoje, manual) {
   return `<div style="font-family:Arial,sans-serif;color:#172b4d;max-width:860px">
     <div style="background:#1f4e78;color:#fff;padding:14px 16px;border-radius:6px">
       <div style="font-size:17px;font-weight:bold">🦇 Agente A.I.F.R.E.A.D · Relatório semanal</div>
-      <div style="font-size:12px;color:#cfe0f3">Alocação de Recurso Terceiro · ${hoje}${manual ? ' · envio manual' : ''}</div>
+      <div style="font-size:12px;color:#cfe0f3">Alocação de Recurso Terceiro${d.timeTitulo ? ' · <b>' + esc(d.timeTitulo) + '</b>' : ''} · ${hoje}${manual ? ' · envio manual' : ''}</div>
     </div>
     <table cellpadding="0" cellspacing="0" style="width:100%;margin-top:12px;border-collapse:separate"><tr>
       ${card('💼 Projetos (orçado)', moeda_(t.orcado), `${inteiro_(t.horasOrcadas)} h · ${t.projetos} projeto(s)`, '#0747a6')}

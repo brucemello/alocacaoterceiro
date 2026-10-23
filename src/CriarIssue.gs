@@ -40,8 +40,8 @@ function abrirTelaCriarIssue() {
  * CHAMADA À API TOLERANTE A RESPOSTA VAZIA (ex.: issueLink → 201 sem corpo)
  ************************************************************/
 function chamarJiraApiCriacao_(endpoint, method, payload) {
-  const token = PropertiesService.getScriptProperties().getProperty('JIRA_TOKEN');
-  if (!token) throw new Error('Token global Jira não configurado (menu 5).');
+  const token = tokenJira_();   // token pessoal do usuário; se não houver, o do sistema
+  if (!token) throw new Error('Token do Jira não configurado: Painel → ⚙️ Configurações → Meu token.');
 
   const options = {
     method: method.toLowerCase(),

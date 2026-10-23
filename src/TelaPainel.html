@@ -27,6 +27,13 @@
 
     /* ---------- Configurações ---------- */
     #cfg { overflow:auto; padding:20px 24px; }
+    .card.destaque { border-color:#4c9aff; }
+    table.membros { width:100%; border-collapse:collapse; font-size:12px; }
+    table.membros th { text-align:left; background:#f4f5f7; padding:6px; font-size:11px; color:#42526e; }
+    table.membros td { padding:4px 6px; border-bottom:1px solid #ebecf0; }
+    table.membros input, table.membros select { width:100%; padding:5px; border:1px solid #c1c7d0; border-radius:4px; font-size:12px; }
+    .usuario { margin-left:auto; align-self:center; color:#cfe0f3; font-size:12px; white-space:nowrap; cursor:pointer; }
+    .usuario b { color:#fff; }
     .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; max-width:1100px; }
     .card { border:1px solid var(--borda); border-radius:6px; padding:14px 16px; }
     .card h4 { margin:0 0 10px; color:var(--azul); font-size:14px; }
@@ -49,6 +56,7 @@
     <button class="aba" data-aba="agenda">📅 Agenda<span class="ponto"></span></button>
     <button class="aba" data-aba="acessos">🔑 Acessos</button>
     <button class="aba" data-aba="cfg">⚙️ Configurações</button>
+    <div class="usuario" id="usuarioTopo" onclick="mostrar('cfg')" title="Meu perfil"></div>
   </div>
 
   <div class="conteudo">
@@ -60,12 +68,37 @@
     <div class="painel" id="p-cfg">
       <div id="cfg">
         <div class="cards">
-          <div class="card">
-            <h4>🔑 Conexão com o Jira</h4>
+          <div class="card destaque">
+            <h4>👤 Meu perfil</h4>
+            <p>E-mail: <b id="pfEmail">—</b> · Papel: <span id="pfPapel" class="tag on">—</span></p>
+            <div class="linha"><input type="text" id="pfNome" placeholder="Seu nome"></div>
+            <div class="linha"><input type="text" id="pfTime" list="dlTimes" placeholder="Seu time (ex.: Novas Apurações)"><datalist id="dlTimes"></datalist></div>
+            <div class="linha"><input type="text" id="pfDest" placeholder="E-mails extras para receber os avisos do time (opcional)"></div>
+            <div class="linha"><button class="primario" onclick="salvarPerfil()">Salvar perfil</button></div>
+            <div class="res" id="resPerfil"></div>
+            <p style="font-size:11px;color:#6b778c">Você vê as solicitações do seu time. Gestor/Admin podem ver todos os times.</p>
+          </div>
+          <div class="card destaque">
+            <h4>🔑 Meu token do Jira</h4>
             <p id="cfgToken">Verificando…</p>
-            <div class="linha"><input type="password" id="token" placeholder="Cole aqui um novo Personal Access Token (PAT)"><button class="secundario" onclick="salvarToken()">Salvar</button></div>
-            <div class="linha"><button class="primario" onclick="testar()">🧪 Testar conexão</button></div>
+            <div class="linha"><input type="password" id="token" placeholder="Cole aqui o SEU Personal Access Token (PAT) do Jira"><button class="secundario" onclick="salvarToken()">Salvar</button></div>
+            <div class="linha"><button class="primario" onclick="testar()">🧪 Testar conexão</button><button class="secundario" onclick="removerToken()">Remover meu token</button></div>
             <div class="res" id="resToken"></div>
+            <p style="font-size:11px;color:#6b778c">Fica guardado só para você (ninguém mais vê). As issues que você criar saem no seu nome no Jira.</p>
+          </div>
+          <div class="card" id="cardAdmin" style="display:none;grid-column:1/-1">
+            <h4>👥 Times e membros <span class="tag on">Admin</span></h4>
+            <table class="membros"><thead><tr><th>E-mail</th><th>Nome</th><th>Time</th><th>Papel</th><th>E-mails extras</th><th></th></tr></thead>
+              <tbody id="tbMembros"></tbody>
+              <tfoot><tr>
+                <td><input id="mbEmail" placeholder="nome@totvs.com.br"></td><td><input id="mbNome"></td>
+                <td><input id="mbTime" list="dlTimes"></td>
+                <td><select id="mbPapel"><option>TL</option><option>Gestor</option><option>Admin</option></select></td>
+                <td><input id="mbDest"></td><td><button class="primario" onclick="salvarMembro()">Adicionar / salvar</button></td>
+              </tr></tfoot></table>
+            <div class="res" id="resMembros"></div>
+            <p style="margin-top:12px"><b>Token do sistema</b> (usado pelas rotinas automáticas e por quem ainda não salvou o próprio): <span id="tokSistema">—</span></p>
+            <div class="linha"><input type="password" id="tokenSistema" placeholder="PAT para as rotinas automáticas"><button class="secundario" onclick="salvarTokenSistema()">Salvar token do sistema</button></div>
           </div>
           <div class="card">
             <h4>⏰ Atualização automática do Controle</h4>
@@ -225,6 +258,8 @@
   }
 
   document.querySelectorAll('.aba').forEach(b => b.addEventListener('click', () => mostrar(b.dataset.aba)));
+  carregarPerfilTopo();
+
   // Aba inicial: ?aba=... no link web, ou Controle
   mostrar(window.ABA_INICIAL || 'controle');
   if (window.MODO_WEB) document.title = '🦇 Agente A.I.F.R.E.A.D';
@@ -232,7 +267,10 @@
   // ---------- Configurações ----------
   function carregarConfig() {
     google.script.run.withSuccessHandler(c => {
-      $('cfgToken').innerHTML = c.temToken ? '<span class="ok">✔ Token configurado.</span>' : '<span class="erro">⚠️ Nenhum token configurado.</span>';
+      $('cfgToken').innerHTML = c.origemToken === 'pessoal' ? '<span class="ok">✔ Usando o <b>seu token</b>.</span>'
+        : c.origemToken === 'sistema' ? '<span style="color:#b65c00">⚠️ Você ainda não salvou o seu token: usando o <b>token do sistema</b> (as issues saem em nome de quem o configurou).</span>'
+        : '<span class="erro">⚠️ Nenhum token configurado.</span>';
+      preencherPerfil(c.perfil);
       $('tagAuto').className = 'tag ' + (c.autoAtivo ? 'on' : 'off');
       $('tagAuto').textContent = c.autoAtivo ? `Ativa · a cada ${c.autoMinutos} min` : 'Desativada';
       if (c.notif) {
@@ -285,9 +323,68 @@
     try { navigator.clipboard.writeText(v).then(ok, () => { $('urlWeb').select(); document.execCommand('copy'); ok(); }); }
     catch (e) { $('urlWeb').select(); document.execCommand('copy'); ok(); }
   }
+  // ---------- perfil / times ----------
+  function preencherPerfil(p) {
+    if (!p) return;
+    $('pfEmail').textContent = p.email || '—';
+    $('pfPapel').textContent = p.cadastrado ? p.papel : 'não cadastrado';
+    $('pfPapel').className = 'tag ' + (p.cadastrado ? 'on' : 'off');
+    if (document.activeElement !== $('pfNome')) $('pfNome').value = p.nome || '';
+    if (document.activeElement !== $('pfTime')) $('pfTime').value = p.time || '';
+    if (document.activeElement !== $('pfDest')) $('pfDest').value = p.destinatarios || '';
+    $('dlTimes').innerHTML = (p.times || []).map(t => `<option value="${t}">`).join('');
+    const admin = p.admin || p.semAdmin;
+    $('cardAdmin').style.display = admin && p.cadastrado ? 'block' : 'none';
+    if (admin && p.cadastrado) carregarMembros();
+    $('usuarioTopo').innerHTML = p.cadastrado ? `👤 <b>${p.nome}</b> · ${p.time}${p.veTodos && p.papel !== 'TL' ? ' · ' + p.papel : ''}`
+      : '👤 <b>cadastre seu perfil</b>';
+  }
+  function carregarPerfilTopo() { google.script.run.withSuccessHandler(preencherPerfil).obterPerfilPainel(); }
+  function salvarPerfil() {
+    $('resPerfil').textContent = 'Salvando…';
+    google.script.run.withSuccessHandler(p => {
+      $('resPerfil').innerHTML = `<span class="ok">✔ Perfil salvo · time <b>${p.time}</b> · papel <b>${p.papel}</b></span>`;
+      preencherPerfil(p); recarregarTelas();
+    }).withFailureHandler(e => $('resPerfil').innerHTML = `<span class="erro">${e.message}</span>`)
+      .salvarPerfilPainel({ nome: $('pfNome').value, time: $('pfTime').value, destinatarios: $('pfDest').value });
+  }
+  function recarregarTelas() { Object.keys(frames).forEach(a => { try { frames[a].contentWindow.postMessage({ __painel: 'shown' }, '*'); } catch (e) {} }); }
+  function carregarMembros() {
+    google.script.run.withSuccessHandler(lista => {
+      $('tbMembros').innerHTML = lista.map(m => `<tr><td>${m.email}</td><td>${m.nome}</td><td><b>${m.time}</b></td><td>${m.papel}</td>
+        <td style="font-size:11px">${m.destinatarios}</td><td style="white-space:nowrap">
+        <button class="secundario" onclick='editarMembro(${JSON.stringify(m).replace(/'/g, "&#39;")})'>✏️</button>
+        <button class="secundario" onclick="removerMembro('${m.email}')">🗑</button></td></tr>`).join('');
+    }).withFailureHandler(e => $('resMembros').innerHTML = `<span class="erro">${e.message}</span>`).listarMembrosPainel();
+    google.script.run.withSuccessHandler(c => $('tokSistema').innerHTML = c.temSistema ? '<span class="ok">configurado</span>' : '<span class="erro">não configurado</span>')
+      .statusTokenSistemaPainel();
+  }
+  function editarMembro(m) { $('mbEmail').value = m.email; $('mbNome').value = m.nome; $('mbTime').value = m.time; $('mbPapel').value = m.papel; $('mbDest').value = m.destinatarios; }
+  function salvarMembro() {
+    google.script.run.withSuccessHandler(() => {
+      $('resMembros').innerHTML = '<span class="ok">✔ Membro salvo.</span>';
+      ['mbEmail', 'mbNome', 'mbTime', 'mbDest'].forEach(i => $(i).value = ''); carregarMembros(); carregarPerfilTopo();
+    }).withFailureHandler(e => $('resMembros').innerHTML = `<span class="erro">${e.message}</span>`)
+      .salvarMembroPainel({ email: $('mbEmail').value, nome: $('mbNome').value, time: $('mbTime').value, papel: $('mbPapel').value, destinatarios: $('mbDest').value });
+  }
+  function removerMembro(email) {
+    if (!confirm('Remover ' + email + ' dos times?')) return;
+    google.script.run.withSuccessHandler(() => carregarMembros())
+      .withFailureHandler(e => $('resMembros').innerHTML = `<span class="erro">${e.message}</span>`).removerMembroPainel(email);
+  }
+  function salvarTokenSistema() {
+    google.script.run.withSuccessHandler(() => { $('tokenSistema').value = ''; $('resMembros').innerHTML = '<span class="ok">✔ Token do sistema salvo.</span>'; carregarMembros(); })
+      .withFailureHandler(e => $('resMembros').innerHTML = `<span class="erro">${e.message}</span>`).salvarTokenSistemaPainel($('tokenSistema').value);
+  }
+  function removerToken() {
+    if (!confirm('Remover o seu token pessoal? Você passará a usar o token do sistema.')) return;
+    google.script.run.withSuccessHandler(() => { $('resToken').innerHTML = '<span class="ok">✔ Token pessoal removido.</span>'; carregarConfig(); })
+      .removerTokenPessoalPainel();
+  }
+
   function salvarToken() {
     $('resToken').textContent = 'Salvando…';
-    google.script.run.withSuccessHandler(() => { $('token').value = ''; $('resToken').innerHTML = '<span class="ok">✔ Token salvo.</span>'; carregarConfig(); })
+    google.script.run.withSuccessHandler(() => { $('token').value = ''; $('resToken').innerHTML = '<span class="ok">✔ Seu token foi salvo (só você tem acesso).</span>'; carregarConfig(); })
       .withFailureHandler(e => $('resToken').innerHTML = `<span class="erro">${e.message}</span>`).salvarTokenPainel($('token').value);
   }
   function testar() {
