@@ -73,22 +73,22 @@
       <button class="secundario mini" onclick="carregarRecursos(true)" title="Recarregar">↻</button>
     </div>
     <div class="grid">
-      <div class="g2"><label class="c">Nome completo do recurso *</label><input id="recurso" class="obrig"></div>
+      <div class="g2"><label class="c">Nome completo do analista *</label><input id="recurso" class="obrig"></div>
       <div><label class="c">Código Recurso (PSA)</label><input id="codigoRecurso"></div>
-      <div><label class="c">E-mail do recurso</label><input id="email" type="email"></div>
+      <div><label class="c">E-mail do analista *</label><input id="email" type="email" class="obrig"></div>
       <div><label class="c">Consultoria</label><input id="consultoria"></div>
       <div><label class="c">Código Projeto (PSA)</label><input id="codigoProjeto" style="text-transform:uppercase"></div>
       <div class="g2"><label class="c">Projeto</label><input id="projeto"></div>
       <div><label class="c">Squad</label><input id="squad"></div>
-      <div><label class="c">Período De</label><input id="de" type="date"></div>
-      <div><label class="c">Período Até</label><input id="ate" type="date"></div>
+      <div><label class="c">Início (a partir de) *</label><input id="de" type="date" class="obrig"></div>
+      <div><label class="c">Fim previsto</label><input id="ate" type="date"></div>
       <div><label class="c">Issue da agenda</label><input id="issue" placeholder="CIBKPRTH-0000" style="text-transform:uppercase"></div>
     </div>
-    <label class="c" style="margin-top:10px">Acessos necessários *</label>
+    <label class="c" style="margin-top:10px">Acessos complementares <span style="font-weight:normal">(opcional — o pedido principal é a inclusão na estrutura do Horacius)</span></label>
     <div class="checks" id="checks"></div>
     <div class="linha"><input id="outros" placeholder="Outros acessos (separe por vírgula)"></div>
-    <label class="c" style="margin-top:8px">Justificativa</label>
-    <textarea id="justificativa" rows="2" placeholder="Gerada automaticamente se ficar em branco"></textarea>
+    <label class="c" style="margin-top:8px">Observação para o chamado <span style="font-weight:normal">(opcional)</span></label>
+    <textarea id="justificativa" rows="2" placeholder="Algo a mais que o atendimento precise saber"></textarea>
 
     <div class="passo">2 · Texto do chamado</div>
     <div class="texto" id="texto"></div>
@@ -189,7 +189,7 @@
     $('justificativa').value = l.justificativa; $('chamado').value = l.chamado;
     const marcados = l.acessos.split(/\s*,\s*/).filter(Boolean);
     document.querySelectorAll('#checks input').forEach(c => c.checked = marcados.indexOf(c.value) !== -1);
-    $('outros').value = marcados.filter(m => DADOS.sistemas.indexOf(m) === -1).join(', ');
+    $('outros').value = marcados.filter(m => DADOS.sistemas.indexOf(m) === -1 && !/horacius/i.test(m)).join(', ');
     $('btnSalvar').textContent = '💾 Salvar alterações';
     $('card').classList.add('on');
     gerarTexto();
@@ -208,30 +208,43 @@
       `${$('squad').value ? ', squad ' + $('squad').value : ''}${per}, conforme agenda ${$('issue').value.toUpperCase() || 'aprovada'}.`;
   }
 
+  /** "bruce.mello@totvs.com.br" → "Bruce Mello" */
+  function nomeDoEmail(e) {
+    return String(e || '').split('@')[0].split(/[._-]+/).filter(Boolean)
+      .map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+  }
+
   function gerarTexto() {
-    const nome = $('recurso').value.trim() || '[nome do recurso]';
+    const nome = $('recurso').value.trim() || '[nome do analista]';
+    const email = $('email').value.trim() || '[e-mail do analista]';
+    const inicio = $('de').value ? dataBR($('de').value) : '[data de início]';
     const proj = [$('codigoProjeto').value.toUpperCase(), $('projeto').value].filter(Boolean).join(' - ');
-    TEXTO.assunto = `Acesso de recurso terceiro - ${nome}${$('codigoProjeto').value ? ' - ' + $('codigoProjeto').value.toUpperCase() : ''}`;
+    const issue = $('issue').value.trim().toUpperCase();
+    const squad = $('squad').value.trim();
     const acessos = acessosMarcados();
     const se = (v, t) => (v ? t : null);       // linha opcional: só entra se houver valor
-    const issue = $('issue').value.trim().toUpperCase();
+
+    TEXTO.assunto = `Inclusão de analista terceiro na estrutura do Horacius - ${nome}`;
     const linhas = [
-      'Solicito a liberação/criação de acessos para o recurso terceiro abaixo:', '',
-      `Nome completo: ${nome}`,
-      se($('codigoRecurso').value, `Código do recurso (PSA): ${$('codigoRecurso').value}`),
-      se($('email').value, `E-mail: ${$('email').value}`),
-      se($('consultoria').value, `Consultoria: ${$('consultoria').value}`),
-      se(proj, `Projeto (PSA): ${proj}`),
-      se($('squad').value, `Squad: ${$('squad').value}`),
-      se($('de').value, `Período de alocação: ${dataBR($('de').value)} a ${dataBR($('ate').value)}`),
-      se(issue, `Agenda (Jira): ${issue} - ${DADOS.jiraUrl || ''}/browse/${issue}`),
-      '', 'Acessos necessários:',
-      ...(acessos.length ? acessos.map(a => `- ${a}`) : ['- [marque os acessos]']),
-      '', `Justificativa: ${$('justificativa').value.trim() || justificativaPadrao()}`,
-      se($('ate').value, `Os acessos devem ser revogados ao fim da alocação (${dataBR($('ate').value)}).`),
-      '', `Gestor responsável: ${DADOS.solicitante || ''}`
+      'Olá,', '',
+      `Solicito a inclusão do analista ${nome} (e-mail: ${email}) na minha estrutura do Horacius.`,
+      `O mesmo fará parte do time de desenvolvimento${squad ? ' da squad ' + squad : ''} a partir de ${inicio}` +
+        `${$('ate').value ? ', com alocação prevista até ' + dataBR($('ate').value) : ''}.`,
+      '',
+      'Dados para referência:',
+      se($('consultoria').value, `- Consultoria: ${$('consultoria').value}`),
+      se($('codigoRecurso').value, `- Código do recurso (PSA): ${$('codigoRecurso').value}`),
+      se(proj, `- Projeto (PSA): ${proj}`),
+      se(issue, `- Agenda (Jira): ${issue} - ${DADOS.jiraUrl || ''}/browse/${issue}`),
+      ...(acessos.length ? ['', 'Acessos complementares necessários:', ...acessos.map(a => `- ${a}`)] : []),
+      se($('justificativa').value.trim(), ''), se($('justificativa').value.trim(), `Observação: ${$('justificativa').value.trim()}`),
+      '', 'Obrigado,', nomeDoEmail(DADOS.solicitante) || ''
     ];
-    TEXTO.descricao = linhas.filter(l => l !== null).join('\n');
+    // tira o bloco "Dados para referência" se ficou vazio
+    const sem = linhas.filter(l => l !== null);
+    const i = sem.indexOf('Dados para referência:');
+    if (i !== -1 && (!sem[i + 1] || !sem[i + 1].startsWith('- '))) sem.splice(i - 1, 2);
+    TEXTO.descricao = sem.join('\n');
     $('texto').textContent = `Assunto: ${TEXTO.assunto}\n\n${TEXTO.descricao}`;
   }
   document.getElementById('card').addEventListener('input', gerarTexto);
@@ -258,7 +271,7 @@
       id: editandoId, recurso: $('recurso').value, codigoRecurso: $('codigoRecurso').value, email: $('email').value,
       consultoria: $('consultoria').value, codigoProjeto: $('codigoProjeto').value, projeto: $('projeto').value,
       squad: $('squad').value, de: $('de').value, ate: $('ate').value, issue: $('issue').value.trim().toUpperCase(),
-      acessos: acessosMarcados(), justificativa: $('justificativa').value.trim() || justificativaPadrao(),
+      acessos: ['Inclusão na estrutura do Horacius'].concat(acessosMarcados()), justificativa: $('justificativa').value.trim(),
       chamado: $('chamado').value
     };
     $('btnSalvar').disabled = true;

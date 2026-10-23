@@ -17,7 +17,7 @@ const CONFIG_AC = {
   URL_TICKET: 'https://suporte.interno.totvs.io/hc/pt-br/requests/',
   STATUS: ['Aguardando abertura', 'Chamado aberto', 'Em atendimento', 'Concluído', 'Negado', 'Revogado', 'Cancelado'],
   SISTEMAS: ['E-mail / Google Workspace', 'Rede / VPN', 'Jira', 'Confluence', 'Fluig', 'Protheus (ambiente de desenvolvimento)',
-    'TFS / Azure DevOps', 'GitHub / Bitbucket', 'Teams / Slack', 'TOTVS Identity (Horacius)'],
+    'TFS / Azure DevOps', 'GitHub / Bitbucket', 'Teams / Slack'],
   DIAS_AVISO_FIM: 15
 };
 
@@ -146,7 +146,8 @@ function obterDadosAcessos() {
 
 function salvarSolicitacaoAcesso(d) {
   if (!String(d.recurso || '').trim()) throw new Error('Informe o nome do recurso.');
-  if (!(d.acessos || []).length) throw new Error('Marque ao menos um acesso.');
+  if (!String(d.email || '').trim()) throw new Error('Informe o e-mail do analista.');
+  if (!d.de) throw new Error('Informe a data de início.');
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
