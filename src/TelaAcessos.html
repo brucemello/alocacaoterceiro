@@ -12,9 +12,11 @@
     button { padding:7px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px; white-space:nowrap; }
     .primario { background:var(--azul2); color:#fff; } .secundario { background:#ebecf0; color:#172b4d; }
     .novo { background:var(--verde); color:#fff; } .portal { background:#ff8b00; color:#fff; }
+    .horacius { background:#6554c0; color:#fff; }
+    .st-horacius { display:inline-block; margin-top:4px; }
     .mini { padding:4px 8px; font-size:11px; }
     button:disabled { opacity:.5; cursor:default; }
-    .kpis { display:grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap:10px; margin-bottom:12px; }
+    .kpis { display:grid; grid-template-columns: repeat(6, minmax(110px, 1fr)); gap:10px; margin-bottom:12px; }
     .kpi { border:1px solid var(--borda); border-radius:6px; padding:9px 11px; cursor:pointer; }
     .kpi:hover { border-color:#4c9aff; } .kpi.sel { border-color:var(--azul2); box-shadow:0 0 0 1px var(--azul2) inset; }
     .kpi .v { font-size:20px; font-weight:bold; color:var(--azul); } .kpi .r { color:var(--cinza); font-size:11px; margin-top:2px; }
@@ -59,6 +61,7 @@
   <div class="acoes">
     <button class="novo" onclick="novaSolicitacao()">➕ Nova solicitação de acesso</button>
     <span class="esp"></span>
+    <button class="horacius" onclick="abrirHoracius()">🔐 Horacius (Gestão de Identidades)</button>
     <button class="secundario" onclick="abrirPortal()">🔗 Portal de suporte</button>
     <button class="secundario" onclick="abrirPlanilha()">📄 Abrir na planilha</button>
   </div>
@@ -127,7 +130,10 @@
   const $ = id => document.getElementById(id);
   var DADOS = { linhas: [], statusOpcoes: [], sistemas: [] }, RECURSOS = [], editandoId = '', filtroKpi = '';
   var TEXTO = { assunto: '', descricao: '' };
-  const INATIVOS = ['Concluído', 'Revogado', 'Cancelado', 'Negado'];
+  const INATIVOS = ['Concluído', 'Horacius liberado', 'Revogado', 'Cancelado', 'Negado'];
+  const CONCEDIDO = ['Concluído', 'Horacius liberado'];
+  const concedido = l => CONCEDIDO.indexOf(l.status) !== -1;
+  const terminando = l => concedido(l) && diasParaFim(l) !== null && diasParaFim(l) <= DADOS.diasAviso;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const dataBR = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
   function mostrarMsg(t, c) { const m = $('msg'); m.className = c; m.innerHTML = t; m.style.display = 'block'; }
@@ -261,6 +267,11 @@
     try { navigator.clipboard.writeText(v).then(ok, fallback); } catch (e) { fallback(); }
   }
 
+  function abrirHoracius() {
+    if (DADOS.urlHoracius) window.open(DADOS.urlHoracius, '_blank');
+    mostrarMsg('🔐 Horacius aberto em nova guia. Depois de liberar, mude o status para <b>Horacius liberado</b>.', 'info');
+  }
+
   function abrirPortal() {
     if (DADOS.urlPortal) window.open(DADOS.urlPortal, '_blank');
     if ($('card').classList.contains('on')) mostrarMsg('🔗 Formulário aberto em nova guia. Cole o assunto e a descrição, envie e depois informe o nº do chamado no passo 3.', 'info');
@@ -290,11 +301,12 @@
 
   function kpis() {
     const L = DADOS.linhas;
-    const fim = L.filter(l => l.status === 'Concluído' && diasParaFim(l) !== null && diasParaFim(l) <= DADOS.diasAviso);
+    const fim = L.filter(terminando);
     const cards = [
       { id: 'st:Aguardando abertura', v: L.filter(l => l.status === 'Aguardando abertura').length, r: 'aguardando abertura', cls: 'alerta' },
       { id: 'andamento', v: L.filter(l => l.status === 'Chamado aberto' || l.status === 'Em atendimento').length, r: 'chamado aberto / em atendimento' },
-      { id: 'st:Concluído', v: L.filter(l => l.status === 'Concluído').length, r: 'acessos concedidos', cls: 'ok' },
+      { id: 'st:Liberar no Horacius', v: L.filter(l => l.status === 'Liberar no Horacius').length, r: 'liberar no Horacius', cls: 'alerta' },
+      { id: 'concedidos', v: L.filter(concedido).length, r: 'acessos concedidos / Horacius liberado', cls: 'ok' },
       { id: 'fim', v: fim.length, r: `terminam em até ${DADOS.diasAviso} dias (revogar)`, cls: fim.length ? 'alerta' : '' },
       { id: '', v: L.length, r: 'solicitações no total' }
     ];
@@ -310,9 +322,10 @@
     const st = $('fStatus').value, q = $('busca').value.trim().toLowerCase(), inat = $('fInativos').checked;
     return DADOS.linhas.filter(l => {
       if (filtroKpi === 'andamento' && !(l.status === 'Chamado aberto' || l.status === 'Em atendimento')) return false;
-      if (filtroKpi === 'fim' && !(l.status === 'Concluído' && diasParaFim(l) !== null && diasParaFim(l) <= DADOS.diasAviso)) return false;
+      if (filtroKpi === 'fim' && !terminando(l)) return false;
+      if (filtroKpi === 'concedidos' && !concedido(l)) return false;
       if (st && l.status !== st) return false;
-      if (!st && !inat && !filtroKpi && INATIVOS.indexOf(l.status) !== -1 && !(l.status === 'Concluído' && diasParaFim(l) !== null && diasParaFim(l) <= DADOS.diasAviso)) return false;
+      if (!st && !inat && !filtroKpi && INATIVOS.indexOf(l.status) !== -1 && !terminando(l)) return false;
       if (q && [l.recurso, l.email, l.projeto, l.codigoProjeto, l.squad, l.chamado, l.acessos, l.obs, l.issue].join(' ').toLowerCase().indexOf(q) === -1) return false;
       return true;
     }).sort((a, b) => b.criadoTs - a.criadoTs);
@@ -327,7 +340,7 @@
     }
     $('corpo').innerHTML = linhas.map(l => {
       const dias = diasParaFim(l);
-      const aviso = l.status === 'Concluído' && dias !== null && dias <= DADOS.diasAviso
+      const aviso = terminando(l)
         ? `<div class="aviso-fim${dias < 0 ? ' vencido' : ''}">${dias < 0 ? `⛔ encerrou há ${-dias} dia(s) — revogar` : `⏳ termina em ${dias} dia(s)`}</div>` : '';
       const opts = (DADOS.statusOpcoes.indexOf(l.status) === -1 && l.status ? [l.status] : []).concat(DADOS.statusOpcoes)
         .map(s => `<option${s === l.status ? ' selected' : ''}>${esc(s)}</option>`).join('');
@@ -339,7 +352,8 @@
         <td style="min-width:200px">${esc(l.acessos)}</td>
         <td style="min-width:120px">${l.chamado ? `<a href="${DADOS.urlTicket}${esc(l.chamado)}">#${esc(l.chamado)}</a>` : ''}
           <input data-id="${esc(l.id)}" data-c="Nº Chamado" value="${esc(l.chamado)}" placeholder="nº do chamado" style="margin-top:3px"></td>
-        <td style="min-width:150px"><select data-id="${esc(l.id)}" data-c="Status">${opts}</select></td>
+        <td style="min-width:160px"><select data-id="${esc(l.id)}" data-c="Status">${opts}</select>
+          ${l.status === 'Liberar no Horacius' ? `<button class="horacius mini st-horacius" onclick="abrirHoracius()">🔐 Abrir Horacius</button>` : ''}</td>
         <td style="min-width:200px"><input data-id="${esc(l.id)}" data-c="Observações" value="${esc(l.obs)}"></td>
         <td style="white-space:nowrap">${esc(l.criadoEm.split(' ')[0])}<div class="sub">${esc(l.solicitante)}</div></td>
       </tr>`;

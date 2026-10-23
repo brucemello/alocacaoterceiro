@@ -15,7 +15,9 @@ const CONFIG_AC = {
     '&tf_49875679614355=pais_brasil&level1=Acessos&level2=Acesso+em+Sistemas+TOTVS' +
     '&level3=Gest%C3%A3o+de+Identidades+-+Horacius&level4=D%C3%BAvida+sobre+Horacius',
   URL_TICKET: 'https://suporte.interno.totvs.io/hc/pt-br/requests/',
-  STATUS: ['Aguardando abertura', 'Chamado aberto', 'Em atendimento', 'Concluído', 'Negado', 'Revogado', 'Cancelado'],
+  URL_HORACIUS: 'https://gestaoid.totvs.com.br/portal/',
+  STATUS: ['Aguardando abertura', 'Chamado aberto', 'Em atendimento', 'Liberar no Horacius', 'Horacius liberado',
+    'Concluído', 'Negado', 'Revogado', 'Cancelado'],
   SISTEMAS: ['E-mail / Google Workspace', 'Rede / VPN', 'Jira', 'Confluence', 'Fluig', 'Protheus (ambiente de desenvolvimento)',
     'TFS / Azure DevOps', 'GitHub / Bitbucket', 'Teams / Slack'],
   DIAS_AVISO_FIM: 15
@@ -120,7 +122,7 @@ function obterDadosAcessos() {
   const base = {
     linhas: [], statusOpcoes: CONFIG_AC.STATUS, sistemas: CONFIG_AC.SISTEMAS, diasAviso: CONFIG_AC.DIAS_AVISO_FIM,
     urlPortal: PropertiesService.getScriptProperties().getProperty('URL_PORTAL_ACESSOS') || CONFIG_AC.URL_PORTAL,
-    urlTicket: CONFIG_AC.URL_TICKET, jiraUrl: CONFIG.JIRA_BASE_URL, solicitante: ''
+    urlTicket: CONFIG_AC.URL_TICKET, urlHoracius: CONFIG_AC.URL_HORACIUS, jiraUrl: CONFIG.JIRA_BASE_URL, solicitante: ''
   };
   try { base.solicitante = Session.getActiveUser().getEmail() || ''; } catch (e) {}
   const aba = ss.getSheetByName(CONFIG_AC.ABA);

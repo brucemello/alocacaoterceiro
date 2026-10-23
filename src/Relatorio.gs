@@ -103,8 +103,8 @@ function dadosRelatorio_() {
     acessos = ac.linhas.filter(l => {
       const d = l.ateTs ? Math.ceil((l.ateTs - Date.now()) / 86400000) : null;
       l.diasFim = d;
-      return l.status === 'Aguardando abertura' || l.status === 'Chamado aberto' || l.status === 'Em atendimento' ||
-        (l.status === 'Concluído' && d !== null && d <= ac.diasAviso);
+      return ['Aguardando abertura', 'Chamado aberto', 'Em atendimento', 'Liberar no Horacius'].indexOf(l.status) !== -1 ||
+        ((l.status === 'Concluído' || l.status === 'Horacius liberado') && d !== null && d <= ac.diasAviso);
     });
   } catch (e) {}
 
@@ -181,7 +181,7 @@ function montarRelatorioHtml_(d, hoje, manual) {
 
   const acessos = d.acessos.map(l => '<tr>' + td(`<b>${esc(l.recurso)}</b><div style="color:#6b778c;font-size:11px">${esc(l.email)}</div>`) +
     td(esc(l.projeto)) + td(l.chamado ? `<a href="${CONFIG_AC.URL_TICKET}${esc(l.chamado)}" style="color:#0052cc">#${esc(l.chamado)}</a>` : '—') +
-    td(esc(l.status) + (l.status === 'Concluído' && l.diasFim !== null ? `<div style="color:${l.diasFim < 0 ? '#bf2600' : '#b65c00'};font-size:11px">${l.diasFim < 0 ? '⛔ período encerrado — revogar' : '⏳ termina em ' + l.diasFim + ' dia(s)'}</div>` : '')) + '</tr>');
+    td(esc(l.status) + ((l.status === 'Concluído' || l.status === 'Horacius liberado') && l.diasFim !== null ? `<div style="color:${l.diasFim < 0 ? '#bf2600' : '#b65c00'};font-size:11px">${l.diasFim < 0 ? '⛔ período encerrado — revogar' : '⏳ termina em ' + l.diasFim + ' dia(s)'}</div>` : '')) + '</tr>');
 
   const web = urlAppWeb_();
   return `<div style="font-family:Arial,sans-serif;color:#172b4d;max-width:860px">
