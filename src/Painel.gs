@@ -25,7 +25,7 @@ function abrirPainel(abaInicial) {
 
 /** Link do App da Web: .../exec  (ou .../exec?aba=agenda | projeto | cfg) */
 function doGet(e) {
-  const abas = ['controle', 'projeto', 'agenda', 'cfg'];
+  const abas = ['controle', 'projeto', 'agenda', 'acessos', 'cfg'];
   const aba = e && e.parameter && abas.indexOf(e.parameter.aba) !== -1 ? e.parameter.aba : 'controle';
   return htmlPainel_(true, aba)
     .setTitle('🦇 Agente A.I.F.R.E.A.D')
@@ -63,7 +63,7 @@ function urlAppWeb_() {
 
 /** Devolve o HTML de uma tela para ser carregada dentro do painel. */
 function obterHtmlTelaPainel(nome) {
-  const permitidas = ['TelaControle', 'TelaProjetoInterno', 'TelaAgenda', 'TelaCriarIssue'];
+  const permitidas = ['TelaControle', 'TelaProjetoInterno', 'TelaAgenda', 'TelaAcessos', 'TelaCriarIssue'];
   if (permitidas.indexOf(nome) === -1) throw new Error('Tela não permitida: ' + nome);
   return HtmlService.createTemplateFromFile(nome).evaluate().getContent();
 }

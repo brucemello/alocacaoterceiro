@@ -43,6 +43,7 @@
     <button class="aba ativa" data-aba="controle">📊 Controle</button>
     <button class="aba" data-aba="projeto">🏗️ Projeto Interno<span class="ponto"></span></button>
     <button class="aba" data-aba="agenda">📅 Agenda<span class="ponto"></span></button>
+    <button class="aba" data-aba="acessos">🔑 Acessos</button>
     <button class="aba" data-aba="cfg">⚙️ Configurações</button>
   </div>
 
@@ -50,6 +51,7 @@
     <div class="painel ativo" id="p-controle"><div class="carregando">Carregando…</div></div>
     <div class="painel" id="p-projeto"><div class="carregando">Carregando…</div></div>
     <div class="painel" id="p-agenda"><div class="carregando">Carregando…</div></div>
+    <div class="painel" id="p-acessos"><div class="carregando">Carregando…</div></div>
 
     <div class="painel" id="p-cfg">
       <div id="cfg">
@@ -103,7 +105,7 @@
 
 <script>
   const $ = id => document.getElementById(id);
-  const TELAS = { controle: 'TelaControle', projeto: 'TelaProjetoInterno', agenda: 'TelaAgenda' };
+  const TELAS = { controle: 'TelaControle', projeto: 'TelaProjetoInterno', agenda: 'TelaAgenda', acessos: 'TelaAcessos' };
   const frames = {};          // aba -> iframe
   let abaAtual = 'controle';
 

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_blank">
+  <style>
+    :root { --azul:#1f4e78; --azul2:#0052cc; --verde:#00875a; --borda:#dfe1e6; --cinza:#6b778c; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 12px; color:#172b4d; margin:0; padding:14px 16px 30px; }
+    h3 { margin: 0 0 10px; font-size: 14px; color:var(--azul); }
+    .acoes { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+    .acoes .esp { flex:1; }
+    button { padding:7px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px; white-space:nowrap; }
+    .primario { background:var(--azul2); color:#fff; } .secundario { background:#ebecf0; color:#172b4d; }
+    .novo { background:var(--verde); color:#fff; } .portal { background:#ff8b00; color:#fff; }
+    .mini { padding:4px 8px; font-size:11px; }
+    button:disabled { opacity:.5; cursor:default; }
+    .kpis { display:grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap:10px; margin-bottom:12px; }
+    .kpi { border:1px solid var(--borda); border-radius:6px; padding:9px 11px; cursor:pointer; }
+    .kpi:hover { border-color:#4c9aff; } .kpi.sel { border-color:var(--azul2); box-shadow:0 0 0 1px var(--azul2) inset; }
+    .kpi .v { font-size:20px; font-weight:bold; color:var(--azul); } .kpi .r { color:var(--cinza); font-size:11px; margin-top:2px; }
+    .kpi.alerta .v { color:#b65c00; } .kpi.ok .v { color:var(--verde); }
+    .card { border:1px solid var(--borda); border-radius:6px; padding:12px 14px; margin-bottom:14px; display:none; }
+    .card.on { display:block; }
+    .passo { font-weight:bold; color:var(--azul); margin:12px 0 6px; font-size:13px; }
+    .passo:first-child { margin-top:0; }
+    .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:8px 12px; }
+    .g2 { grid-column: span 2; } .g4 { grid-column: 1 / -1; }
+    label.c { display:block; font-weight:bold; font-size:11px; margin-bottom:3px; color:#42526e; }
+    input, select, textarea { width:100%; padding:6px 7px; border:1px solid #c1c7d0; border-radius:4px; font-size:12px; font-family:inherit; }
+    textarea { resize:vertical; }
+    .obrig { border-left:4px solid #4c9aff; }
+    .sel-rec { display:grid; grid-template-columns: auto 1fr auto; gap:8px; align-items:center; background:#f7faff; border:1px solid #deebff; border-radius:4px; padding:8px 10px; margin-bottom:10px; }
+    .checks { display:grid; grid-template-columns: repeat(4, 1fr); gap:5px 12px; background:#f7faff; border:1px solid #deebff; border-radius:4px; padding:8px 10px; }
+    .checks label { display:flex; gap:6px; align-items:center; font-size:12px; }
+    .checks input { width:auto; }
+    .texto { background:#f4f5f7; border:1px solid var(--borda); border-radius:4px; padding:10px; white-space:pre-wrap; font-family:Consolas, monospace; font-size:12px; max-height:240px; overflow:auto; }
+    .linha { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+    .linha input { flex:1; min-width:180px; }
+    .filtros { display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+    #busca { min-width:260px; width:auto; } #fStatus { width:auto; }
+    .tabela { border:1px solid var(--borda); border-radius:6px; overflow:auto; max-height:calc(100vh - 230px); }
+    table { border-collapse:collapse; width:100%; min-width:1300px; }
+    th { position:sticky; top:0; background:var(--azul); color:#fff; text-align:left; padding:7px 8px; font-size:11px; z-index:1; white-space:nowrap; }
+    th.man { background:#ffab00; color:#172b4d; }
+    td { border-bottom:1px solid var(--borda); padding:6px 8px; vertical-align:top; }
+    tr:hover td { background:#f7faff; }
+    td .sub { color:var(--cinza); font-size:11px; }
+    td input, td select { padding:4px 5px; }
+    .aviso-fim { display:inline-block; margin-top:3px; padding:1px 6px; border-radius:10px; font-size:10px; font-weight:bold; background:#fff4e5; color:#b65c00; }
+    .aviso-fim.vencido { background:#ffebe6; color:#bf2600; }
+    tr.inativo td { color:#97a0af; }
+    .salvo { outline:2px solid #57d9a3; }
+    .vazio { padding:30px; text-align:center; color:var(--cinza); }
+    #msg { padding:7px 9px; border-radius:4px; display:none; font-size:12px; margin-bottom:10px; }
+    .ok { background:#e3fcef; color:#006644; } .erro { background:#ffebe6; color:#bf2600; } .info { background:#deebff; color:#0747a6; }
+  </style>
+</head>
+<body>
+  <div class="acoes">
+    <button class="novo" onclick="novaSolicitacao()">➕ Nova solicitação de acesso</button>
+    <span class="esp"></span>
+    <button class="secundario" onclick="abrirPortal()">🔗 Portal de suporte</button>
+    <button class="secundario" onclick="abrirPlanilha()">📄 Abrir na planilha</button>
+  </div>
+  <div id="msg"></div>
+
+  <!-- ===================== FORMULÁRIO ===================== -->
+  <div class="card" id="card">
+    <div class="passo">1 · Terceiro e acessos</div>
+    <div class="sel-rec">
+      <b>👤 Terceiro das Agendas</b>
+      <select id="selRecurso"><option value="">— carregando… —</option></select>
+      <button class="secundario mini" onclick="carregarRecursos(true)" title="Recarregar">↻</button>
+    </div>
+    <div class="grid">
+      <div class="g2"><label class="c">Nome completo do recurso *</label><input id="recurso" class="obrig"></div>
+      <div><label class="c">Código Recurso (PSA)</label><input id="codigoRecurso"></div>
+      <div><label class="c">E-mail do recurso</label><input id="email" type="email"></div>
+      <div><label class="c">Consultoria</label><input id="consultoria"></div>
+      <div><label class="c">Código Projeto (PSA)</label><input id="codigoProjeto" style="text-transform:uppercase"></div>
+      <div class="g2"><label class="c">Projeto</label><input id="projeto"></div>
+      <div><label class="c">Squad</label><input id="squad"></div>
+      <div><label class="c">Período De</label><input id="de" type="date"></div>
+      <div><label class="c">Período Até</label><input id="ate" type="date"></div>
+      <div><label class="c">Issue da agenda</label><input id="issue" placeholder="CIBKPRTH-0000" style="text-transform:uppercase"></div>
+    </div>
+    <label class="c" style="margin-top:10px">Acessos necessários *</label>
+    <div class="checks" id="checks"></div>
+    <div class="linha"><input id="outros" placeholder="Outros acessos (separe por vírgula)"></div>
+    <label class="c" style="margin-top:8px">Justificativa</label>
+    <textarea id="justificativa" rows="2" placeholder="Gerada automaticamente se ficar em branco"></textarea>
+
+    <div class="passo">2 · Texto do chamado</div>
+    <div class="texto" id="texto"></div>
+    <div class="linha">
+      <button class="secundario" onclick="copiar('assunto')">📋 Copiar assunto</button>
+      <button class="secundario" onclick="copiar('descricao')">📋 Copiar descrição</button>
+      <button class="portal" onclick="abrirPortal()">🔗 Abrir formulário no portal de suporte</button>
+    </div>
+
+    <div class="passo">3 · Registrar o chamado</div>
+    <div class="linha">
+      <input id="chamado" placeholder="Nº do chamado aberto no portal (ex.: 3107383 ou o link) — pode informar depois">
+      <button class="primario" id="btnSalvar" onclick="salvar()">💾 Salvar solicitação</button>
+      <button class="secundario" onclick="fecharForm()">Fechar</button>
+    </div>
+  </div>
+
+  <!-- ===================== ACOMPANHAMENTO ===================== -->
+  <div class="kpis" id="kpis"></div>
+  <div class="filtros">
+    <select id="fStatus"><option value="">Todos os status</option></select>
+    <label style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="fInativos" style="width:auto"> mostrar concluídos/revogados/cancelados</label>
+    <input id="busca" placeholder="🔎 Buscar recurso, projeto, chamado, acesso…">
+  </div>
+  <div class="tabela">
+    <table>
+      <thead><tr>
+        <th></th><th>Recurso</th><th>Projeto</th><th>Período</th><th>Acessos</th>
+        <th class="man">Nº Chamado ✎</th><th class="man">Status ✎</th><th class="man">Observações ✎</th><th>Criado</th>
+      </tr></thead>
+      <tbody id="corpo"><tr><td colspan="9" class="vazio">Carregando…</td></tr></tbody>
+    </table>
+  </div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  var DADOS = { linhas: [], statusOpcoes: [], sistemas: [] }, RECURSOS = [], editandoId = '', filtroKpi = '';
+  var TEXTO = { assunto: '', descricao: '' };
+  const INATIVOS = ['Concluído', 'Revogado', 'Cancelado', 'Negado'];
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const dataBR = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+  function mostrarMsg(t, c) { const m = $('msg'); m.className = c; m.innerHTML = t; m.style.display = 'block'; }
+
+  // ---------- carga ----------
+  function carregar() {
+    google.script.run.withSuccessHandler(d => {
+      DADOS = d;
+      if (!$('checks').children.length) {
+        $('checks').innerHTML = d.sistemas.map(s => `<label><input type="checkbox" value="${esc(s)}"> ${esc(s)}</label>`).join('');
+        $('fStatus').innerHTML = '<option value="">Todos os status</option>' + d.statusOpcoes.map(s => `<option>${esc(s)}</option>`).join('');
+      }
+      render();
+    }).withFailureHandler(e => { $('corpo').innerHTML = `<tr><td colspan="9" class="vazio" style="color:#bf2600">${esc(e.message)}</td></tr>`; })
+      .obterDadosAcessos();
+  }
+  window.addEventListener('message', ev => { if (ev.data && ev.data.__painel === 'shown') { carregar(); carregarRecursos(); } });
+
+  function carregarRecursos(manual) {
+    google.script.run.withSuccessHandler(lista => {
+      RECURSOS = lista;
+      $('selRecurso').innerHTML = '<option value="">— selecione o terceiro —</option>' + lista.map((r, i) =>
+        `<option value="${i}">${esc(r.recurso)}${r.codigoProjeto ? ' · ' + esc(r.codigoProjeto) : ''}${r.projeto ? ' · ' + esc(r.projeto.slice(0, 60)) : ''}${r.de ? ' · ' + dataBR(r.de) + '→' + dataBR(r.ate) : ''}</option>`).join('');
+      if (!lista.length) $('selRecurso').innerHTML = '<option value="">— nenhuma agenda encontrada: preencha os campos abaixo —</option>';
+      if (manual) mostrarMsg(`${lista.length} terceiro(s) encontrados nas Agendas.`, 'ok');
+    }).withFailureHandler(e => { $('selRecurso').innerHTML = `<option value="">${esc(e.message)}</option>`; }).listarRecursosParaAcesso();
+  }
+
+  $('selRecurso').addEventListener('change', () => {
+    const r = RECURSOS[$('selRecurso').value];
+    if (!r) return;
+    ['recurso', 'codigoRecurso', 'email', 'consultoria', 'codigoProjeto', 'projeto', 'squad', 'de', 'ate', 'issue']
+      .forEach(k => $(k).value = r[k] || '');
+    gerarTexto();
+  });
+
+  // ---------- formulário ----------
+  function novaSolicitacao() {
+    editandoId = '';
+    ['recurso', 'codigoRecurso', 'email', 'consultoria', 'codigoProjeto', 'projeto', 'squad', 'de', 'ate', 'issue', 'outros', 'justificativa', 'chamado']
+      .forEach(k => $(k).value = '');
+    document.querySelectorAll('#checks input').forEach(c => c.checked = false);
+    $('selRecurso').value = '';
+    $('btnSalvar').textContent = '💾 Salvar solicitação';
+    $('card').classList.add('on');
+    gerarTexto();
+    $('card').scrollIntoView({ behavior: 'smooth' });
+  }
+  function fecharForm() { $('card').classList.remove('on'); }
+
+  function editar(id) {
+    const l = DADOS.linhas.find(x => x.id === id);
+    if (!l) return;
+    editandoId = id;
+    const iso = br => { const m = String(br || '').match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : ''; };
+    $('recurso').value = l.recurso; $('codigoRecurso').value = l.codigoRecurso; $('email').value = l.email;
+    $('consultoria').value = l.consultoria; $('codigoProjeto').value = l.codigoProjeto; $('projeto').value = l.projeto;
+    $('squad').value = l.squad; $('de').value = iso(l.de); $('ate').value = iso(l.ate); $('issue').value = l.issue;
+    $('justificativa').value = l.justificativa; $('chamado').value = l.chamado;
+    const marcados = l.acessos.split(/\s*,\s*/).filter(Boolean);
+    document.querySelectorAll('#checks input').forEach(c => c.checked = marcados.indexOf(c.value) !== -1);
+    $('outros').value = marcados.filter(m => DADOS.sistemas.indexOf(m) === -1).join(', ');
+    $('btnSalvar').textContent = '💾 Salvar alterações';
+    $('card').classList.add('on');
+    gerarTexto();
+    $('card').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function acessosMarcados() {
+    const lista = Array.from(document.querySelectorAll('#checks input:checked')).map(c => c.value);
+    return lista.concat($('outros').value.split(/\s*,\s*/).map(s => s.trim()).filter(Boolean));
+  }
+
+  function justificativaPadrao() {
+    const p = [$('codigoProjeto').value.toUpperCase(), $('projeto').value].filter(Boolean).join(' - ');
+    const per = $('de').value ? ` no período de ${dataBR($('de').value)} a ${dataBR($('ate').value)}` : '';
+    return `Alocação do recurso terceiro${$('consultoria').value ? ' (' + $('consultoria').value + ')' : ''} no projeto ${p || '—'}` +
+      `${$('squad').value ? ', squad ' + $('squad').value : ''}${per}, conforme agenda ${$('issue').value.toUpperCase() || 'aprovada'}.`;
+  }
+
+  function gerarTexto() {
+    const nome = $('recurso').value.trim() || '[nome do recurso]';
+    const proj = [$('codigoProjeto').value.toUpperCase(), $('projeto').value].filter(Boolean).join(' - ');
+    TEXTO.assunto = `Acesso de recurso terceiro - ${nome}${$('codigoProjeto').value ? ' - ' + $('codigoProjeto').value.toUpperCase() : ''}`;
+    const acessos = acessosMarcados();
+    const se = (v, t) => (v ? t : null);       // linha opcional: só entra se houver valor
+    const issue = $('issue').value.trim().toUpperCase();
+    const linhas = [
+      'Solicito a liberação/criação de acessos para o recurso terceiro abaixo:', '',
+      `Nome completo: ${nome}`,
+      se($('codigoRecurso').value, `Código do recurso (PSA): ${$('codigoRecurso').value}`),
+      se($('email').value, `E-mail: ${$('email').value}`),
+      se($('consultoria').value, `Consultoria: ${$('consultoria').value}`),
+      se(proj, `Projeto (PSA): ${proj}`),
+      se($('squad').value, `Squad: ${$('squad').value}`),
+      se($('de').value, `Período de alocação: ${dataBR($('de').value)} a ${dataBR($('ate').value)}`),
+      se(issue, `Agenda (Jira): ${issue} - ${DADOS.jiraUrl || ''}/browse/${issue}`),
+      '', 'Acessos necessários:',
+      ...(acessos.length ? acessos.map(a => `- ${a}`) : ['- [marque os acessos]']),
+      '', `Justificativa: ${$('justificativa').value.trim() || justificativaPadrao()}`,
+      se($('ate').value, `Os acessos devem ser revogados ao fim da alocação (${dataBR($('ate').value)}).`),
+      '', `Gestor responsável: ${DADOS.solicitante || ''}`
+    ];
+    TEXTO.descricao = linhas.filter(l => l !== null).join('\n');
+    $('texto').textContent = `Assunto: ${TEXTO.assunto}\n\n${TEXTO.descricao}`;
+  }
+  document.getElementById('card').addEventListener('input', gerarTexto);
+  document.getElementById('card').addEventListener('change', gerarTexto);
+
+  function copiar(qual) {
+    const v = TEXTO[qual];
+    const ok = () => mostrarMsg(`📋 ${qual === 'assunto' ? 'Assunto' : 'Descrição'} copiado. Cole no formulário do portal.`, 'ok');
+    const fallback = () => {
+      const t = document.createElement('textarea'); t.value = v; document.body.appendChild(t); t.select();
+      try { document.execCommand('copy'); ok(); } catch (e) { mostrarMsg('Não consegui copiar: selecione o texto manualmente.', 'erro'); }
+      t.remove();
+    };
+    try { navigator.clipboard.writeText(v).then(ok, fallback); } catch (e) { fallback(); }
+  }
+
+  function abrirPortal() {
+    if (DADOS.urlPortal) window.open(DADOS.urlPortal, '_blank');
+    if ($('card').classList.contains('on')) mostrarMsg('🔗 Formulário aberto em nova guia. Cole o assunto e a descrição, envie e depois informe o nº do chamado no passo 3.', 'info');
+  }
+
+  function salvar() {
+    const d = {
+      id: editandoId, recurso: $('recurso').value, codigoRecurso: $('codigoRecurso').value, email: $('email').value,
+      consultoria: $('consultoria').value, codigoProjeto: $('codigoProjeto').value, projeto: $('projeto').value,
+      squad: $('squad').value, de: $('de').value, ate: $('ate').value, issue: $('issue').value.trim().toUpperCase(),
+      acessos: acessosMarcados(), justificativa: $('justificativa').value.trim() || justificativaPadrao(),
+      chamado: $('chamado').value
+    };
+    $('btnSalvar').disabled = true;
+    google.script.run.withSuccessHandler(r => {
+      $('btnSalvar').disabled = false;
+      editandoId = r.id;
+      $('btnSalvar').textContent = '💾 Salvar alterações';
+      mostrarMsg(`✅ Solicitação salva · status <b>${esc(r.status)}</b>${r.status === 'Aguardando abertura' ? ' · informe o nº do chamado quando abrir no portal.' : ''}`, 'ok');
+      carregar();
+    }).withFailureHandler(e => { $('btnSalvar').disabled = false; mostrarMsg('❌ ' + esc(e.message), 'erro'); })
+      .salvarSolicitacaoAcesso(d);
+  }
+
+  // ---------- lista ----------
+  function diasParaFim(l) { return l.ateTs ? Math.ceil((l.ateTs - Date.now()) / 86400000) : null; }
+
+  function kpis() {
+    const L = DADOS.linhas;
+    const fim = L.filter(l => l.status === 'Concluído' && diasParaFim(l) !== null && diasParaFim(l) <= DADOS.diasAviso);
+    const cards = [
+      { id: 'st:Aguardando abertura', v: L.filter(l => l.status === 'Aguardando abertura').length, r: 'aguardando abertura', cls: 'alerta' },
+      { id: 'andamento', v: L.filter(l => l.status === 'Chamado aberto' || l.status === 'Em atendimento').length, r: 'chamado aberto / em atendimento' },
+      { id: 'st:Concluído', v: L.filter(l => l.status === 'Concluído').length, r: 'acessos concedidos', cls: 'ok' },
+      { id: 'fim', v: fim.length, r: `terminam em até ${DADOS.diasAviso} dias (revogar)`, cls: fim.length ? 'alerta' : '' },
+      { id: '', v: L.length, r: 'solicitações no total' }
+    ];
+    $('kpis').innerHTML = cards.map(c => `<div class="kpi ${c.cls || ''}${filtroKpi === c.id && c.id ? ' sel' : ''}" data-k="${esc(c.id)}"><div class="v">${c.v}</div><div class="r">${c.r}</div></div>`).join('');
+    $('kpis').querySelectorAll('.kpi').forEach(k => k.onclick = () => {
+      filtroKpi = filtroKpi === k.dataset.k ? '' : k.dataset.k;
+      $('fStatus').value = filtroKpi.indexOf('st:') === 0 ? filtroKpi.slice(3) : '';
+      render();
+    });
+  }
+
+  function filtradas() {
+    const st = $('fStatus').value, q = $('busca').value.trim().toLowerCase(), inat = $('fInativos').checked;
+    return DADOS.linhas.filter(l => {
+      if (filtroKpi === 'andamento' && !(l.status === 'Chamado aberto' || l.status === 'Em atendimento')) return false;
+      if (filtroKpi === 'fim' && !(l.status === 'Concluído' && diasParaFim(l) !== null && diasParaFim(l) <= DADOS.diasAviso)) return false;
+      if (st && l.status !== st) return false;
+      if (!st && !inat && !filtroKpi && INATIVOS.indexOf(l.status) !== -1 && !(l.status === 'Concluído' && diasParaFim(l) !== null && diasParaFim(l) <= DADOS.diasAviso)) return false;
+      if (q && [l.recurso, l.email, l.projeto, l.codigoProjeto, l.squad, l.chamado, l.acessos, l.obs, l.issue].join(' ').toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    }).sort((a, b) => b.criadoTs - a.criadoTs);
+  }
+
+  function render() {
+    kpis();
+    const linhas = filtradas();
+    if (!linhas.length) {
+      $('corpo').innerHTML = `<tr><td colspan="9" class="vazio">${DADOS.linhas.length ? 'Nenhuma solicitação com esses filtros.' : 'Nenhuma solicitação de acesso ainda. Clique em ➕ Nova solicitação de acesso.'}</td></tr>`;
+      return;
+    }
+    $('corpo').innerHTML = linhas.map(l => {
+      const dias = diasParaFim(l);
+      const aviso = l.status === 'Concluído' && dias !== null && dias <= DADOS.diasAviso
+        ? `<div class="aviso-fim${dias < 0 ? ' vencido' : ''}">${dias < 0 ? `⛔ encerrou há ${-dias} dia(s) — revogar` : `⏳ termina em ${dias} dia(s)`}</div>` : '';
+      const opts = (DADOS.statusOpcoes.indexOf(l.status) === -1 && l.status ? [l.status] : []).concat(DADOS.statusOpcoes)
+        .map(s => `<option${s === l.status ? ' selected' : ''}>${esc(s)}</option>`).join('');
+      return `<tr class="${INATIVOS.indexOf(l.status) !== -1 && !aviso ? 'inativo' : ''}">
+        <td><button class="secundario mini" onclick="editar('${esc(l.id)}')" title="Editar / gerar texto de novo">✏️</button></td>
+        <td style="min-width:180px"><b>${esc(l.recurso)}</b><div class="sub">${esc(l.email)}${l.consultoria ? ' · ' + esc(l.consultoria) : ''}</div></td>
+        <td style="min-width:220px">${esc(l.projeto)}<div class="sub">${esc(l.codigoProjeto)}${l.squad ? ' · ' + esc(l.squad) : ''}${l.issue ? ` · <a href="${DADOS.jiraUrl}/browse/${esc(l.issue)}">${esc(l.issue)}</a>` : ''}</div></td>
+        <td style="white-space:nowrap">${esc(l.de)}${l.ate ? ' → ' + esc(l.ate) : ''}${aviso}</td>
+        <td style="min-width:200px">${esc(l.acessos)}</td>
+        <td style="min-width:120px">${l.chamado ? `<a href="${DADOS.urlTicket}${esc(l.chamado)}">#${esc(l.chamado)}</a>` : ''}
+          <input data-id="${esc(l.id)}" data-c="Nº Chamado" value="${esc(l.chamado)}" placeholder="nº do chamado" style="margin-top:3px"></td>
+        <td style="min-width:150px"><select data-id="${esc(l.id)}" data-c="Status">${opts}</select></td>
+        <td style="min-width:200px"><input data-id="${esc(l.id)}" data-c="Observações" value="${esc(l.obs)}"></td>
+        <td style="white-space:nowrap">${esc(l.criadoEm.split(' ')[0])}<div class="sub">${esc(l.solicitante)}</div></td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.addEventListener('change', ev => {
+    const el = ev.target;
+    if (!el.dataset || !el.dataset.id) return;
+    google.script.run.withSuccessHandler(() => {
+      el.classList.add('salvo'); setTimeout(() => el.classList.remove('salvo'), 900);
+      carregar();
+    }).withFailureHandler(e => mostrarMsg('❌ Não consegui salvar: ' + esc(e.message), 'erro'))
+      .alterarCampoAcesso(el.dataset.id, el.dataset.c, el.value);
+  });
+  $('fStatus').onchange = () => { filtroKpi = $('fStatus').value ? 'st:' + $('fStatus').value : ''; render(); };
+  $('fInativos').onchange = render;
+  $('busca').oninput = render;
+
+  function abrirPlanilha() {
+    google.script.run.withSuccessHandler(r => {
+      if (r && r.web) window.open(r.url, '_blank');
+      else mostrarMsg('📄 Aba <b>Acessos_Terceiros</b> ativada na planilha (feche o painel para ver).', 'ok');
+    }).withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).irParaAbaAcessos();
+  }
+
+  carregar();
+  carregarRecursos();
+</script>
+</body>
+</html>

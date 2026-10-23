@@ -8,7 +8,7 @@ const CONFIG = {
   JIRA_BASE_URL: 'https://jiraproducao.totvs.com.br',
   ABA_LOG: 'Logs',
   ABAS_PROTEGIDAS: ['Logs', 'Criar_Issues', 'Template_Bruto', 'Controle_Solicitacoes',
-    'Rascunhos_PI', 'Rascunhos_Agenda']
+    'Rascunhos_PI', 'Rascunhos_Agenda', 'Acessos_Terceiros']
 };
 
 /**
