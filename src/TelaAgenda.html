@@ -72,6 +72,8 @@
     .excecao .chk { display:flex; gap:6px; align-items:center; font-weight:normal; font-size:12px; }
     .excecao .chk::before { content:none !important; }
     .excecao .chk input { width:auto; }
+    .alerta-topo { display:none; margin:10px 0 0; padding:9px 12px; border-radius:4px; background:#ffebe6; color:#bf2600; font-size:12px; }
+    .alerta-topo.on { display:flex; gap:10px; align-items:center; justify-content:space-between; }
     .titulo-box { background:#fffae6; border:1px solid #ffe380; padding:7px 10px; border-radius:4px; margin-top:8px; font-size:12px; }
   </style>
 </head>
@@ -79,6 +81,8 @@
   <h2>📅 Solicitação de Criação de Agenda</h2>
   <div class="sub">Preencha os campos azuis (obrigatórios) e, se houver, os verdes e laranjas. O restante do layout do template CIBKPRTH-7191 é montado automaticamente.</div>
   <div class="legenda"><span class="lg-az">AZUL · obrigatório</span><span class="lg-vd">VERDE · opcional</span><span class="lg-lj">LARANJA · só Projetos SFA (TOTVS CRM)</span></div>
+
+  <div id="alertaTopo" class="alerta-topo"></div>
 
   <div class="rascunhos">
     <b>📂 Rascunhos:</b>
@@ -300,12 +304,24 @@
   }
 
   // ---------- inicialização ----------
+  function alertaTopo(html) {
+    const a = $('alertaTopo');
+    a.innerHTML = html ? `<span>${html}</span><button class="secundario mini" onclick="location.reload()">↻ Tentar de novo</button>` : '';
+    a.classList.toggle('on', !!html);
+  }
+  const vigia = setTimeout(() => {
+    if (!CFG) alertaTopo('⏳ O servidor está demorando para responder. Se continuar assim, clique em <b>Tentar de novo</b>. ' +
+      'Persistindo: feche o painel, recarregue a planilha (F5) e abra de novo.');
+  }, 20000);
+
   google.script.run.withSuccessHandler(cfg => {
+    clearTimeout(vigia); alertaTopo('');
     CFG = cfg;
     $('projetoJira').value = cfg.projetoPadrao;
     $('epico').value = cfg.epicoPadrao;
     $('fixosIssue').innerHTML = `Fixo: Prioridade <b>${escHtml(cfg.prioridade)}</b> (igual à template ${cfg.template})` +
-      (cfg.epicoPadrao ? '' : ' · <span style="color:#bf2600">não consegui ler o épico da template — informe manualmente</span>');
+      (cfg.metaPendente ? ' · <span style="color:#6b778c">lendo a template no Jira…</span>' :
+        cfg.epicoPadrao ? '' : ' · <span style="color:#bf2600">não consegui ler o épico da template — informe manualmente</span>');
 
     $('mesesEsp').innerHTML = cfg.meses.map((m, i) =>
       `<div class="campo vd"><label>${m}</label><input data-esp="${i}" placeholder="DD, DD, DD"></div>`).join('');
@@ -334,7 +350,22 @@
       const p = Object.values(PROJETOS).find(x => x.nome.toLowerCase() === $('nomeProjeto').value.trim().toLowerCase());
       if (p && !$('codigoProjeto').value.trim()) aplicarProjeto(p, true);
     });
-  }).withFailureHandler(e => mostrar('Erro ao carregar: ' + e.message, 'erro')).obterConfigAgenda();
+    // Template (épico/prioridade) em segundo plano: o formulário não espera o Jira
+    if (cfg.metaPendente) {
+      google.script.run.withSuccessHandler(m => {
+        CFG.prioridade = m.prioridade;
+        if (!CFG.epicoPadrao && m.epico) { CFG.epicoPadrao = m.epico; if (!$('epico').value && !issueEditando) $('epico').value = m.epico; }
+        $('fixosIssue').innerHTML = `Fixo: Prioridade <b>${escHtml(m.prioridade)}</b> (igual à template ${CFG.template})` +
+          (m.epico ? '' : ' · <span style="color:#bf2600">não consegui ler o épico da template — informe manualmente</span>');
+      }).withFailureHandler(e => {
+        $('fixosIssue').innerHTML += ` · <span style="color:#bf2600">Jira sem resposta ao ler a template: ${escHtml(e.message)}</span>`;
+      }).obterMetaAgendaPainel();
+    }
+  }).withFailureHandler(e => {
+    clearTimeout(vigia);
+    alertaTopo('❌ Não consegui carregar o formulário: ' + escHtml(e.message));
+    mostrar('Erro ao carregar: ' + escHtml(e.message), 'erro');
+  }).obterConfigAgenda();
 
   // ---------- Projetos do Controle (combos) ----------
   function carregarProjetosControle(manual) {

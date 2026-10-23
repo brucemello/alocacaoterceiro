@@ -57,16 +57,25 @@ function obterMetaTemplateAG_() {
   return meta;
 }
 
+/** Configuração inicial do formulário: rápida, sem depender do Jira (usa o cache da template). */
 function obterConfigAgenda() {
-  const meta = obterMetaTemplateAG_();
+  let meta = null;
+  try { const c = CacheService.getScriptCache().get('AG_META_TEMPLATE'); meta = c ? JSON.parse(c) : null; } catch (e) {}
   return {
     projetoPadrao: CONFIG_AG.PROJETO_JIRA_PADRAO,
-    epicoPadrao: CONFIG_AG.EPICO_FIXO || meta.epicKey || '',
-    prioridade: meta.priorityName || 'Média',
+    epicoPadrao: CONFIG_AG.EPICO_FIXO || (meta && meta.epicKey) || '',
+    prioridade: (meta && meta.priorityName) || 'Média',
     template: CONFIG_AG.ISSUE_TEMPLATE,
     jiraUrl: CONFIG.JIRA_BASE_URL,
-    meses: CONFIG_PI.MESES
+    meses: CONFIG_PI.MESES,
+    metaPendente: !meta
   };
+}
+
+/** Lê a template no Jira (chamado em segundo plano pelo formulário). */
+function obterMetaAgendaPainel() {
+  const meta = obterMetaTemplateAG_();
+  return { epico: CONFIG_AG.EPICO_FIXO || meta.epicKey || '', prioridade: meta.priorityName || 'Média', ok: !!meta.issuetypeId };
 }
 
 /** Tipos do projeto, com "Tarefa" (tipo da template de agenda) como padrão. */
