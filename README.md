@@ -88,6 +88,13 @@ e envia **um e-mail** quando algo muda: status do Jira, nº da solicitação, ti
 resposta do suporte, código PSA, status de controle ou analista. Destinatários em ⚙️ Configurações
 (vazio = quem ativou). Na primeira vez, rode **📧 Enviar e-mail de teste** pelo menu para autorizar o envio.
 
+## Relatório semanal
+
+Toda **segunda-feira às 8h** (ative em ⚙️ Configurações → *Relatório semanal*), o agente atualiza o Jira e envia
+um e-mail com: Projetos (orçado), Agendas (alocado) e Saldo; tabela de projetos com alocado/saldo; agendas;
+pendências de solicitação; agendas terminando em 30 dias; acessos de terceiros em andamento/terminando.
+Os valores de Agenda **não** são somados aos de Projeto (a agenda consome o orçamento do projeto).
+
 ## Uso na planilha
 
 Menu **🦇 Agente A.I.F.R.E.A.D → 🧭 Abrir Painel**.

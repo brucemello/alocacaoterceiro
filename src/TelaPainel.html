@@ -77,6 +77,15 @@
             <div class="res" id="resNotif"></div>
           </div>
           <div class="card">
+            <h4>📊 Relatório semanal por e-mail</h4>
+            <p>Toda <b>segunda-feira às 8h</b>: valores dos Projetos (orçado), das Agendas (alocado) e saldo; projetos, agendas,
+              pendências e acessos terminando. Vai para os mesmos destinatários do e-mail de mudanças.</p>
+            <p>Situação: <span id="tagRel" class="tag off">—</span></p>
+            <div class="linha"><button class="primario" onclick="relatorio(true)">Ativar</button><button class="secundario" onclick="relatorio(false)">Desativar</button>
+              <button class="secundario" onclick="relatorioAgora()">Enviar agora</button></div>
+            <div class="res" id="resRel"></div>
+          </div>
+          <div class="card">
             <h4>🚀 Abrir o Controle direto</h4>
             <p><b>Ao abrir a planilha:</b> o painel abre sozinho na aba Controle (vale só para você).</p>
             <p>Situação: <span id="tagAbertura" class="tag off">—</span></p>
@@ -198,6 +207,8 @@
         $('notifEmails').value = c.notif.emails;
         $('notifEmails').placeholder = 'vazio = ' + (c.notif.destinatarios[0] || 'você');
       }
+      $('tagRel').className = 'tag ' + (c.relatorioAtivo ? 'on' : 'off');
+      $('tagRel').textContent = c.relatorioAtivo ? 'Ativo · segundas 8h' : 'Desativado';
       $('tagAbertura').className = 'tag ' + (c.aberturaAuto ? 'on' : 'off');
       $('tagAbertura').textContent = c.aberturaAuto ? 'Ativa' : 'Desativada';
       $('urlWeb').value = c.urlWeb ? c.urlWeb + '' : '';
@@ -218,6 +229,16 @@
     $('resNotif').textContent = 'Enviando…';
     google.script.run.withSuccessHandler(d => $('resNotif').innerHTML = `<span class="ok">✔ E-mail de teste enviado para ${d.join(', ')}</span>`)
       .withFailureHandler(e => $('resNotif').innerHTML = `<span class="erro">${e.message}</span>`).enviarEmailTestePainel();
+  }
+  function relatorio(ativar) {
+    $('resRel').textContent = ativar ? 'Ativando…' : 'Desativando…';
+    google.script.run.withSuccessHandler(on => { $('resRel').innerHTML = `<span class="ok">✔ Relatório semanal ${on ? 'ativado (segundas às 8h)' : 'desativado'}.</span>`; carregarConfig(); })
+      .withFailureHandler(e => $('resRel').innerHTML = `<span class="erro">${e.message}</span>`).definirRelatorioSemanalPainel(ativar);
+  }
+  function relatorioAgora() {
+    $('resRel').textContent = 'Atualizando o Jira e montando o relatório…';
+    google.script.run.withSuccessHandler(p => $('resRel').innerHTML = `<span class="ok">✔ Relatório enviado para ${p.join(', ')}</span>`)
+      .withFailureHandler(e => $('resRel').innerHTML = `<span class="erro">${e.message}</span>`).enviarRelatorioAgoraPainel();
   }
   function abertura(ativar) {
     $('resAbertura').textContent = ativar ? 'Ativando…' : 'Desativando…';

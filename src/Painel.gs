@@ -58,7 +58,7 @@ function definirAberturaAutomaticaPainel(ativar) {
 
 /** Link do App da Web, se já houver uma implantação desse tipo. */
 function urlAppWeb_() {
-  try { return ScriptApp.getService().getUrl() || ''; } catch (e) { return ''; }
+  return PropertiesService.getScriptProperties().getProperty('URL_APP_WEB') || CONFIG.URL_APP_WEB || '';
 }
 
 /** Devolve o HTML de uma tela para ser carregada dentro do painel. */
@@ -154,6 +154,7 @@ function statusConfigPainel() {
     temToken: !!PropertiesService.getScriptProperties().getProperty('JIRA_TOKEN'),
     autoAtivo: autoAtualizacaoAtiva_(),
     aberturaAuto: aberturaAutomaticaAtiva_(),
+    relatorioAtivo: relatorioSemanalAtivo_(),
     autoMinutos: AUTO_MINUTOS,
     notif: configNotificacao_(),
     urlWeb: urlAppWeb_(),

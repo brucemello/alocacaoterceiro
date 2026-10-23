@@ -743,7 +743,7 @@ function enviarEmailMudancas_(mudancas, teste) {
   const destaque = { 'Status Controle': '#0052cc', 'Código Projeto (PSA)': '#00875a', 'Status Jira': '#403294', 'Status Ticket': '#b65c00' };
   let linkPlanilha = '', linkWeb = '';
   try { const ss = planilha_(); linkPlanilha = ss.getUrl() + '#gid=' + abaControle_().getSheetId(); } catch (e) {}
-  try { linkWeb = ScriptApp.getService().getUrl() || ''; } catch (e) {}
+  linkWeb = urlAppWeb_();
 
   const blocos = mudancas.map(m => `
     <tr><td style="padding:12px 14px;border-bottom:1px solid #dfe1e6">
