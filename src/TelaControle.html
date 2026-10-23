@@ -54,7 +54,7 @@
     <span class="esp"></span>
     <button class="secundario" onclick="toggleImportar()">📥 Importar issue(s) existente(s)</button>
     <button class="primario" id="btnAtualizar" onclick="atualizarJira()">🔄 Atualizar do Jira</button>
-    <button class="secundario" onclick="google.script.run.irParaAbaControle()">📄 Abrir na planilha</button>
+    <button class="secundario" onclick="abrirPlanilha()">📄 Abrir na planilha</button>
   </div>
 
   <div class="imp" id="boxImp">
@@ -110,6 +110,13 @@
   const fmtNum = n => Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function mostrarMsg(t, c) { const m = $('msg'); m.className = c; m.innerHTML = t; m.style.display = 'block'; }
+
+  function abrirPlanilha() {
+    google.script.run.withSuccessHandler(r => {
+      if (r && r.web) window.open(r.url, '_blank');
+      else mostrarMsg('📄 Aba <b>Controle_Solicitacoes</b> ativada na planilha (feche o painel para ver).', 'ok');
+    }).withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).irParaAbaControle();
+  }
 
   function irPara(aba) {
     if (window.irParaAbaPainel) window.irParaAbaPainel(aba);

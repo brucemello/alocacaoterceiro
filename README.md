@@ -64,6 +64,22 @@ scripts/verificar-sintaxe.js
 > ℹ️ Cada atualização de implantação cria uma nova versão do script (limite do Google: 200 versões).
 > Se não usar a implantação para nada, pode remover o secret `DEPLOYMENT_ID`.
 
+## Link direto (App da Web)
+
+O manifesto publica o painel também como **App da Web** (`doGet`), acessível por quem é do domínio,
+executando com a conta de quem acessa:
+
+- `.../exec` → abre o painel na aba **Controle**
+- `.../exec?aba=agenda` · `?aba=projeto` · `?aba=cfg` → abre em outra aba
+
+O link aparece em ⚙️ Configurações → *Abrir o Controle direto*. Para existir, é preciso uma
+implantação do tipo **App da Web** (Implantar → Nova implantação → App da Web); coloque o ID dela
+no secret `DEPLOYMENT_ID` para que cada publicação atualize o link automaticamente.
+Pelo link, o agente usa a planilha registrada na última vez que ela foi aberta pelo menu.
+
+Em ⚙️ Configurações também dá para ativar **abrir o painel automaticamente ao abrir a planilha**
+(gatilho por usuário).
+
 ## Uso na planilha
 
 Menu **🦇 Agente A.I.F.R.E.A.D → 🧭 Abrir Painel**.

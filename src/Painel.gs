@@ -1,15 +1,64 @@
 /************************************************************
- * AGENTE JIRA IA - PAINEL CENTRAL (v1.0)
+ * 🦇 AGENTE A.I.F.R.E.A.D - PAINEL CENTRAL
  * Uma janela com abas: Controle · Projeto Interno · Agenda · Configurações
- * Os formulários existentes são carregados dentro do painel
- * (TelaProjetoInterno, TelaAgenda) sem alteração.
+ * Abre de três jeitos:
+ *  - menu da planilha (janela sobre a planilha)
+ *  - automaticamente ao abrir a planilha (opção em Configurações)
+ *  - link do App da Web (doGet) → abre direto no Controle
  ************************************************************/
 
-function abrirPainel() {
-  const html = HtmlService.createHtmlOutputFromFile('TelaPainel')
+const TITULO_PAINEL = '🦇 Agente A.I.F.R.E.A.D - Alocação de Recurso Terceiro';
+
+function htmlPainel_(modoWeb, abaInicial) {
+  let html = HtmlService.createHtmlOutputFromFile('TelaPainel').getContent();
+  const cfg = `<script>window.MODO_WEB=${modoWeb ? 'true' : 'false'};window.ABA_INICIAL=${JSON.stringify(abaInicial || 'controle')};</script>`;
+  html = html.replace(/<head[^>]*>/i, h => h + cfg);
+  return HtmlService.createHtmlOutput(html);
+}
+
+function abrirPainel(abaInicial) {
+  const html = htmlPainel_(false, typeof abaInicial === 'string' ? abaInicial : 'controle')
     .setWidth(1240)
     .setHeight(860);
-  SpreadsheetApp.getUi().showModalDialog(html, '🦇 Agente A.I.F.R.E.A.D - Alocação de Recurso Terceiro');
+  SpreadsheetApp.getUi().showModalDialog(html, TITULO_PAINEL);
+}
+
+/** Link do App da Web: .../exec  (ou .../exec?aba=agenda | projeto | cfg) */
+function doGet(e) {
+  const abas = ['controle', 'projeto', 'agenda', 'cfg'];
+  const aba = e && e.parameter && abas.indexOf(e.parameter.aba) !== -1 ? e.parameter.aba : 'controle';
+  return htmlPainel_(true, aba)
+    .setTitle('🦇 Agente A.I.F.R.E.A.D')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/************************************************************
+ * ABRIR O PAINEL AUTOMATICAMENTE AO ABRIR A PLANILHA
+ * (gatilho instalável por usuário: cada pessoa liga para si)
+ ************************************************************/
+function abrirPainelAoAbrirPlanilha() {
+  try { abrirPainel('controle'); } catch (e) { Logger.log('Painel automático: ' + e.message); }
+}
+
+function aberturaAutomaticaAtiva_() {
+  try {
+    return ScriptApp.getUserTriggers(planilha_())
+      .some(t => t.getHandlerFunction() === 'abrirPainelAoAbrirPlanilha');
+  } catch (e) { return false; }
+}
+
+function definirAberturaAutomaticaPainel(ativar) {
+  const ss = planilha_();
+  ScriptApp.getUserTriggers(ss)
+    .filter(t => t.getHandlerFunction() === 'abrirPainelAoAbrirPlanilha')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  if (ativar) ScriptApp.newTrigger('abrirPainelAoAbrirPlanilha').forSpreadsheet(ss).onOpen().create();
+  return aberturaAutomaticaAtiva_();
+}
+
+/** Link do App da Web, se já houver uma implantação desse tipo. */
+function urlAppWeb_() {
+  try { return ScriptApp.getService().getUrl() || ''; } catch (e) { return ''; }
 }
 
 /** Devolve o HTML de uma tela para ser carregada dentro do painel. */
@@ -23,7 +72,7 @@ function obterHtmlTelaPainel(nome) {
  * CONTROLE
  ************************************************************/
 function obterDadosControle() {
-  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG_CT.ABA);
+  const aba = planilha_().getSheetByName(CONFIG_CT.ABA);
   const base = {
     linhas: [], statusOpcoes: CONFIG_CT.STATUS_CONTROLE,
     autoAtivo: autoAtualizacaoAtiva_(), jiraUrl: CONFIG.JIRA_BASE_URL
@@ -79,9 +128,13 @@ function importarIssuesPainel(entrada) {
   return r;
 }
 
+/** Dentro da planilha: ativa a aba. Pelo link web: devolve a URL da aba para abrir em nova guia. */
 function irParaAbaControle() {
-  SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(abaControle_());
-  return true;
+  const ss = planilha_(), aba = abaControle_();
+  const url = ss.getUrl() + '#gid=' + aba.getSheetId();
+  const dentroDaPlanilha = !!SpreadsheetApp.getActiveSpreadsheet();
+  if (dentroDaPlanilha) ss.setActiveSheet(aba);
+  return { url: url, web: !dentroDaPlanilha };
 }
 
 /************************************************************
@@ -97,6 +150,8 @@ function statusConfigPainel() {
   return {
     temToken: !!PropertiesService.getScriptProperties().getProperty('JIRA_TOKEN'),
     autoAtivo: autoAtualizacaoAtiva_(),
+    aberturaAuto: aberturaAutomaticaAtiva_(),
+    urlWeb: urlAppWeb_(),
     usuario: Session.getActiveUser().getEmail() || '',
     jiraUrl: CONFIG.JIRA_BASE_URL
   };

@@ -1,8 +1,7 @@
 /************************************************************
- * PROJETO TERCEIRO - ARQUIVO PRINCIPAL (menu, config e token)
- * Use este arquivo numa planilha NOVA, junto com:
- *   CriarIssue.gs, TelaCriarIssue.html,
- *   ProjetoInterno.gs, TelaProjetoInterno.html
+ * 🦇 AGENTE A.I.F.R.E.A.D - ARQUIVO PRINCIPAL
+ * Menu, configuração, token do Jira e acesso à planilha
+ * (funciona tanto dentro da planilha quanto pelo link do App da Web).
  ************************************************************/
 
 const CONFIG = {
@@ -12,7 +11,24 @@ const CONFIG = {
     'Rascunhos_PI', 'Rascunhos_Agenda']
 };
 
+/**
+ * Planilha do agente. Dentro da planilha usa a ativa (e guarda o ID);
+ * pelo link do App da Web (sem planilha ativa) abre pelo ID guardado.
+ */
+function planilha_() {
+  const props = PropertiesService.getScriptProperties();
+  const ativa = SpreadsheetApp.getActiveSpreadsheet();
+  if (ativa) {
+    if (props.getProperty('PLANILHA_ID') !== ativa.getId()) props.setProperty('PLANILHA_ID', ativa.getId());
+    return ativa;
+  }
+  const id = props.getProperty('PLANILHA_ID');
+  if (!id) throw new Error('Abra a planilha "Projeto Terceiro" uma vez pelo menu do agente para registrar o link.');
+  return SpreadsheetApp.openById(id);
+}
+
 function onOpen() {
+  try { planilha_(); } catch (e) {}
   SpreadsheetApp.getUi()
     .createMenu('🦇 Agente A.I.F.R.E.A.D')
     .addItem('🧭 Abrir Painel', 'abrirPainel')

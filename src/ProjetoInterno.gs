@@ -150,8 +150,8 @@ function criarIssueProjetoInterno(dados) {
     (avisos.length ? '<br>⚠️ Não aplicado (fora das telas do projeto): ' + avisos.join(', ') : '');
 
   try {
-    const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_LOG)
-      || SpreadsheetApp.getActiveSpreadsheet().insertSheet(CONFIG.ABA_LOG);
+    const aba = planilha_().getSheetByName(CONFIG.ABA_LOG)
+      || planilha_().insertSheet(CONFIG.ABA_LOG);
     aba.appendRow([new Date(), Session.getActiveUser().getEmail() || 'desconhecido',
       'CRIAR_PROJETO_INTERNO', resp.key, projeto, fields.summary, statusEpico]);
   } catch (e) {}
@@ -174,7 +174,7 @@ const CAB_RASCUNHOS_PI = ['ID', 'Atualizado em', 'Usuário', 'Nome do Projeto', 
   'Título (prévia)', 'Descrição (prévia wiki)', 'Dados (JSON)'];
 
 function abaRascunhosPI_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = planilha_();
   let aba = ss.getSheetByName(ABA_RASCUNHOS_PI);
   if (!aba) {
     aba = ss.insertSheet(ABA_RASCUNHOS_PI);
@@ -195,7 +195,7 @@ function linhaRascunhoPI_(aba, id) {
 
 /** Salva (ou atualiza) o rascunho. Também grava a prévia, se os dados permitirem gerá-la. */
 function salvarRascunhoPI(dados, rascunhoId) {
-  const lock = LockService.getDocumentLock();
+  const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const aba = abaRascunhosPI_();
@@ -224,7 +224,7 @@ function salvarRascunhoPI(dados, rascunhoId) {
 }
 
 function listarRascunhosPI() {
-  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ABA_RASCUNHOS_PI);
+  const aba = planilha_().getSheetByName(ABA_RASCUNHOS_PI);
   if (!aba || aba.getLastRow() < 2) return [];
   return aba.getRange(2, 1, aba.getLastRow() - 1, 6).getDisplayValues()
     .map((r, i) => ({ r: r, data: aba.getRange(i + 2, 2).getValue() }))
@@ -243,7 +243,7 @@ function listarRascunhosPI() {
 }
 
 function carregarRascunhoPI(id) {
-  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ABA_RASCUNHOS_PI);
+  const aba = planilha_().getSheetByName(ABA_RASCUNHOS_PI);
   const linha = aba ? linhaRascunhoPI_(aba, id) : 0;
   if (!linha) throw new Error('Rascunho não encontrado.');
   return JSON.parse(aba.getRange(linha, 9).getValue() || '{}');
@@ -251,7 +251,7 @@ function carregarRascunhoPI(id) {
 
 function marcarRascunhoCriadoPI_(id, key, url) {
   try {
-    const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ABA_RASCUNHOS_PI);
+    const aba = planilha_().getSheetByName(ABA_RASCUNHOS_PI);
     const linha = aba ? linhaRascunhoPI_(aba, id) : 0;
     if (!linha) return;
     aba.getRange(linha, 5).setValue('Criada');
@@ -488,7 +488,7 @@ function obterCampoEpicLink_() {
 function exportarTemplateBrutoJira() {
   const resp = chamarJiraApiCriacao_(
     `/rest/api/2/issue/${CONFIG_PI.ISSUE_TEMPLATE}?fields=summary,description`, 'get');
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = planilha_();
   let aba = ss.getSheetByName('Template_Bruto');
   if (!aba) aba = ss.insertSheet('Template_Bruto');
   aba.clear();

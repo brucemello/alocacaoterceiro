@@ -125,8 +125,8 @@ function criarIssueAgenda(dados) {
 
   const url = `${CONFIG.JIRA_BASE_URL}/browse/${resp.key}`;
   try {
-    const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.ABA_LOG)
-      || SpreadsheetApp.getActiveSpreadsheet().insertSheet(CONFIG.ABA_LOG);
+    const aba = planilha_().getSheetByName(CONFIG.ABA_LOG)
+      || planilha_().insertSheet(CONFIG.ABA_LOG);
     aba.appendRow([new Date(), Session.getActiveUser().getEmail() || 'desconhecido',
       'CRIAR_AGENDA', resp.key, projeto, CONFIG_AG.TITULO(dados), status.replace(/<br>/g, ' ')]);
   } catch (e) {}
@@ -251,7 +251,7 @@ const CAB_RASCUNHOS_GEN = ['ID', 'Atualizado em', 'Usuário', 'Identificação',
   'Título (prévia)', 'Descrição (prévia wiki)', 'Dados (JSON)'];
 
 function abaRascunhosGen_(nome) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = planilha_();
   let aba = ss.getSheetByName(nome);
   if (!aba) {
     aba = ss.insertSheet(nome);
@@ -274,7 +274,7 @@ function listarRascunhosAG() { return listarRascunhosGen_(CONFIG_AG.ABA_RASCUNHO
 function carregarRascunhoAG(id) { return carregarRascunhoGen_(CONFIG_AG.ABA_RASCUNHOS, id); }
 
 function salvarRascunhoGen_(nomeAba, dados, rascunhoId, ident, titulo, descricao) {
-  const lock = LockService.getDocumentLock();
+  const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const aba = abaRascunhosGen_(nomeAba);
@@ -295,7 +295,7 @@ function salvarRascunhoGen_(nomeAba, dados, rascunhoId, ident, titulo, descricao
 }
 
 function listarRascunhosGen_(nomeAba) {
-  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nomeAba);
+  const aba = planilha_().getSheetByName(nomeAba);
   if (!aba || aba.getLastRow() < 2) return [];
   const n = aba.getLastRow() - 1;
   const txt = aba.getRange(2, 1, n, 6).getDisplayValues();
@@ -316,7 +316,7 @@ function listarRascunhosGen_(nomeAba) {
 }
 
 function carregarRascunhoGen_(nomeAba, id) {
-  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nomeAba);
+  const aba = planilha_().getSheetByName(nomeAba);
   const linha = aba ? linhaRascunhoPI_(aba, id) : 0;
   if (!linha) throw new Error('Rascunho não encontrado.');
   return JSON.parse(aba.getRange(linha, 9).getValue() || '{}');
@@ -324,7 +324,7 @@ function carregarRascunhoGen_(nomeAba, id) {
 
 function marcarRascunhoGen_(nomeAba, id, key, url) {
   try {
-    const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nomeAba);
+    const aba = planilha_().getSheetByName(nomeAba);
     const linha = aba ? linhaRascunhoPI_(aba, id) : 0;
     if (!linha) return;
     aba.getRange(linha, 5).setValue('Criada');

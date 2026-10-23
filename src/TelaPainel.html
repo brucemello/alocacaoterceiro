@@ -69,6 +69,16 @@
             <div class="res" id="resAuto"></div>
           </div>
           <div class="card">
+            <h4>🚀 Abrir o Controle direto</h4>
+            <p><b>Ao abrir a planilha:</b> o painel abre sozinho na aba Controle (vale só para você).</p>
+            <p>Situação: <span id="tagAbertura" class="tag off">—</span></p>
+            <div class="linha"><button class="primario" onclick="abertura(true)">Ativar</button><button class="secundario" onclick="abertura(false)">Desativar</button></div>
+            <div class="res" id="resAbertura"></div>
+            <p style="margin-top:12px"><b>Link direto (App da Web):</b></p>
+            <div class="linha"><input type="text" id="urlWeb" readonly placeholder="Ainda não há implantação do tipo App da Web"><button class="secundario" onclick="copiarLink()">Copiar</button></div>
+            <div class="res" id="resWeb"></div>
+          </div>
+          <div class="card">
             <h4>🧹 Manutenção</h4>
             <p>Se alguém mudar tipo, prioridade ou épico das templates no Jira (CIBKPRTH-7190 / 7191), limpe o cache para o painel reler.</p>
             <div class="linha"><button class="secundario" onclick="limparCache()">Limpar cache das templates</button></div>
@@ -119,7 +129,7 @@
         [m.fn].apply(null, m.args || []);
       if (/^criarIssue/.test(m.fn)) marcarSujo(aba, false);
     } else if (m.__painel === 'close') {
-      google.script.host.close();
+      if (window.MODO_WEB) mostrar('controle'); else google.script.host.close();
     } else if (m.__painel === 'tab') {
       mostrar(m.tab);
     }
@@ -165,7 +175,9 @@
   }
 
   document.querySelectorAll('.aba').forEach(b => b.addEventListener('click', () => mostrar(b.dataset.aba)));
-  carregarTela('controle');
+  // Aba inicial: ?aba=... no link web, ou Controle
+  mostrar(window.ABA_INICIAL || 'controle');
+  if (window.MODO_WEB) document.title = '🦇 Agente A.I.F.R.E.A.D';
 
   // ---------- Configurações ----------
   function carregarConfig() {
@@ -173,9 +185,26 @@
       $('cfgToken').innerHTML = c.temToken ? '<span class="ok">✔ Token configurado.</span>' : '<span class="erro">⚠️ Nenhum token configurado.</span>';
       $('tagAuto').className = 'tag ' + (c.autoAtivo ? 'on' : 'off');
       $('tagAuto').textContent = c.autoAtivo ? 'Ativa' : 'Desativada';
+      $('tagAbertura').className = 'tag ' + (c.aberturaAuto ? 'on' : 'off');
+      $('tagAbertura').textContent = c.aberturaAuto ? 'Ativa' : 'Desativada';
+      $('urlWeb').value = c.urlWeb ? c.urlWeb + '' : '';
+      $('resWeb').innerHTML = c.urlWeb ? 'Abre direto no Controle. Use <code>?aba=agenda</code> ou <code>?aba=projeto</code> para abrir em outra aba.'
+        : 'Crie uma implantação do tipo <b>App da Web</b> (Implantar → Nova implantação) para ter o link.';
       $('cfgUsuario').textContent = c.usuario || '—';
       $('cfgJira').textContent = c.jiraUrl;
     }).statusConfigPainel();
+  }
+  function abertura(ativar) {
+    $('resAbertura').textContent = ativar ? 'Ativando…' : 'Desativando…';
+    google.script.run.withSuccessHandler(on => { $('resAbertura').innerHTML = `<span class="ok">✔ Abertura automática ${on ? 'ativada' : 'desativada'}.</span>`; carregarConfig(); })
+      .withFailureHandler(e => $('resAbertura').innerHTML = `<span class="erro">${e.message}</span>`).definirAberturaAutomaticaPainel(ativar);
+  }
+  function copiarLink() {
+    const v = $('urlWeb').value;
+    if (!v) return;
+    const ok = () => $('resWeb').innerHTML = '<span class="ok">✔ Link copiado.</span>';
+    try { navigator.clipboard.writeText(v).then(ok, () => { $('urlWeb').select(); document.execCommand('copy'); ok(); }); }
+    catch (e) { $('urlWeb').select(); document.execCommand('copy'); ok(); }
   }
   function salvarToken() {
     $('resToken').textContent = 'Salvando…';

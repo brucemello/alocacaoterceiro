@@ -186,7 +186,7 @@ function vincularIssues_(novaKey, existenteKey, tipoVinculo) {
  * CRIAÇÃO EM LOTE A PARTIR DA ABA 'Criar_Issues'
  ************************************************************/
 function prepararAbaCriacaoLote() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = planilha_();
   let aba = ss.getSheetByName(CONFIG_CRIACAO.ABA_LOTE);
   if (!aba) aba = ss.insertSheet(CONFIG_CRIACAO.ABA_LOTE);
 
@@ -207,7 +207,7 @@ function prepararAbaCriacaoLote() {
 
 function criarIssuesEmLote() {
   const ui = SpreadsheetApp.getUi();
-  const aba = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG_CRIACAO.ABA_LOTE);
+  const aba = planilha_().getSheetByName(CONFIG_CRIACAO.ABA_LOTE);
   if (!aba || aba.getLastRow() < 2) {
     ui.alert('Nada para criar', `Prepare e preencha a aba '${CONFIG_CRIACAO.ABA_LOTE}' primeiro.`, ui.ButtonSet.OK);
     return;
@@ -270,7 +270,7 @@ function formatarDataIso_(v) {
 
 function registrarLogCriacao_(key, payload, vinculo) {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = planilha_();
     let aba = ss.getSheetByName(CONFIG.ABA_LOG);
     if (!aba) aba = ss.insertSheet(CONFIG.ABA_LOG);
     aba.appendRow([

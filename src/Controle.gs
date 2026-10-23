@@ -26,7 +26,7 @@ const C_CT = {}; COLS_CT.forEach((n, i) => C_CT[n] = i + 1);
  * ABA
  ************************************************************/
 function abaControle_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = planilha_();
   let aba = ss.getSheetByName(CONFIG_CT.ABA);
   if (aba) return aba;
 
@@ -83,7 +83,7 @@ function colunaLetra_(n) {
 
 function abrirControle() {
   const aba = abaControle_();
-  SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(aba);
+  planilha_().setActiveSheet(aba);
 }
 
 /************************************************************
@@ -163,7 +163,7 @@ function linhaControlePorIssue_(aba, key) {
  * IMPORTA ISSUES JÁ CRIADAS (a partir das abas de rascunho)
  ************************************************************/
 function importarDosRascunhos_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = planilha_();
   const fontes = [
     { aba: 'Rascunhos_PI', tipo: 'Projeto Interno' },
     { aba: 'Rascunhos_Agenda', tipo: 'Agenda' }
@@ -196,7 +196,7 @@ function atualizarControle() {
   const ui = SpreadsheetApp.getUi();
   const importados = importarDosRascunhos_();
   const r = atualizarControleSilencioso_();
-  SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(abaControle_());
+  planilha_().setActiveSheet(abaControle_());
   ui.alert('🔄 Controle atualizado',
     `Issues verificadas: ${r.verificadas}\n` +
     `Nº de solicitação encontrados: ${r.comSolicitacao}\n` +
@@ -352,7 +352,7 @@ function importarIssuesExistentes() {
 
   const r = importarIssuesParaControle_(entrada);
   if (r.importadas.length) atualizarControleSilencioso_();
-  SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(abaControle_());
+  planilha_().setActiveSheet(abaControle_());
 
   ui.alert('📥 Importação concluída',
     `✅ Importadas: ${r.importadas.length}${r.importadas.length ? ' (' + r.importadas.join(', ') + ')' : ''}\n` +
@@ -509,7 +509,7 @@ function buscarComentariosIssue_(key) {
  ************************************************************/
 function diagnosticarLinhaControle() {
   const ui = SpreadsheetApp.getUi();
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = planilha_();
   const aba = ss.getActiveSheet();
   if (aba.getName() !== CONFIG_CT.ABA) {
     ui.alert('Abra a aba Controle_Solicitacoes e selecione a linha da issue.'); return;
