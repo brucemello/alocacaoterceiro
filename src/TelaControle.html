@@ -12,7 +12,22 @@
     .primario { background:var(--azul2); color:#fff; } .secundario { background:#ebecf0; color:#172b4d; }
     .novo { background:#00875a; color:#fff; }
     button:disabled { opacity:.5; cursor:default; }
-    .kpis { display:grid; grid-template-columns: repeat(8, minmax(105px, 1fr)); gap:10px; margin-bottom:12px; }
+    .kpis { display:grid; grid-template-columns: repeat(6, minmax(105px, 1fr)); gap:10px; margin-bottom:10px; }
+    .valores { display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-bottom:12px; }
+    .vcard { border:1px solid var(--borda); border-radius:6px; padding:10px 12px; cursor:pointer; }
+    .vcard:hover { border-color:#4c9aff; }
+    .vcard .t { font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:.3px; color:var(--cinza); }
+    .vcard .v { font-size:20px; font-weight:bold; margin-top:3px; }
+    .vcard .r { color:var(--cinza); font-size:11px; margin-top:2px; }
+    .vcard.proj { border-left:4px solid #0052cc; } .vcard.proj .v { color:#0747a6; }
+    .vcard.agen { border-left:4px solid #6554c0; } .vcard.agen .v { color:#403294; }
+    .vcard.saldo { border-left:4px solid #00875a; } .vcard.saldo .v { color:#006644; }
+    .vcard.saldo.neg { border-left-color:#de350b; } .vcard.saldo.neg .v { color:#bf2600; }
+    .barra-uso { height:6px; background:#ebecf0; border-radius:3px; margin-top:6px; overflow:hidden; }
+    .barra-uso div { height:100%; background:#6554c0; }
+    .barra-uso.estourou div { background:#de350b; }
+    td .uso { font-size:11px; color:#403294; margin-top:2px; white-space:nowrap; }
+    td .uso.estourou { color:#bf2600; font-weight:bold; }
     .kpi { border:1px solid var(--borda); border-radius:6px; padding:9px 11px; cursor:pointer; }
     .kpi:hover { border-color:#4c9aff; }
     .kpi.sel { border-color:var(--azul2); box-shadow:0 0 0 1px var(--azul2) inset; }
@@ -66,6 +81,7 @@
   <div id="msg"></div>
 
   <div class="kpis" id="kpis"></div>
+  <div class="valores" id="valores"></div>
 
   <div class="filtros">
     <div class="seg" id="segTipo">
@@ -157,10 +173,25 @@
       { id: 'tipo:Agenda', v: ag.length, r: 'agendas' },
       { id: 'st:Aguardando solicitação', v: cont('Aguardando solicitação'), r: 'aguardando solicitação', alerta: true },
       { id: 'st:Solicitação aberta', v: cont('Solicitação aberta'), r: 'solicitação aberta' },
-      { id: 'horas', v: fmtNum(soma(ativos, 'horas')), r: 'horas negociadas' },
-      { id: 'valor', v: fmtMoeda(soma(ativos, 'valorTotal')), r: 'valor total (sem cancelados)' },
       { id: 'cancel', v: nCanc, r: 'cancelados', canc: true }
     ];
+
+    // Valores: Agenda consome o orçamento do Projeto — nunca somar os dois
+    const hP = soma(pi, 'horas'), vP = soma(pi, 'valorTotal');
+    const agVinc = ag.filter(a => projetoDaAgenda(a, pi));
+    const hA = soma(ag, 'horas'), vA = soma(ag, 'valorTotal');
+    const hAv = soma(agVinc, 'horas'), vAv = soma(agVinc, 'valorTotal');
+    const pct = vP ? Math.round(vAv / vP * 100) : 0;
+    const semProj = ag.length - agVinc.length;
+    $('valores').innerHTML = `
+      <div class="vcard proj" data-t="Projeto Interno"><div class="t">💼 Valor dos Projetos (orçado)</div>
+        <div class="v">${fmtMoeda(vP)}</div><div class="r">${fmtNum(hP)} h · ${pi.length} projeto(s)</div></div>
+      <div class="vcard agen" data-t="Agenda"><div class="t">📅 Valor das Agendas (alocado)</div>
+        <div class="v">${fmtMoeda(vA)}</div><div class="r">${fmtNum(hA)} h · ${ag.length} agenda(s)${semProj ? ` · ${semProj} sem projeto no Controle` : ''}</div></div>
+      <div class="vcard saldo${vP - vAv < 0 ? ' neg' : ''}" data-t="Projeto Interno"><div class="t">⚖️ Saldo dos Projetos (orçado − alocado)</div>
+        <div class="v">${fmtMoeda(vP - vAv)}</div><div class="r">${fmtNum(hP - hAv)} h livres · ${pct}% do orçamento alocado</div>
+        <div class="barra-uso${pct > 100 ? ' estourou' : ''}"><div style="width:${Math.min(pct, 100)}%"></div></div></div>`;
+    $('valores').querySelectorAll('.vcard').forEach(c => c.onclick = () => { filtroTipo = c.dataset.t; filtroKpi = ''; $('fStatus').value = ''; atualizarSeg(); render(); });
     $('kpis').innerHTML = cards.map(c =>
       `<div class="kpi${c.alerta && c.v ? ' alerta' : ''}${c.canc ? ' canc' : ''}${filtroKpi === c.id && c.id ? ' sel' : ''}" data-k="${esc(c.id)}"><div class="v">${c.v}</div><div class="r">${c.r}</div></div>`).join('');
     $('kpis').querySelectorAll('.kpi').forEach(k => k.onclick = () => {
@@ -171,6 +202,16 @@
       else if (id === '') { filtroTipo = ''; filtroKpi = ''; $('fStatus').value = ''; $('busca').value = ''; }
       atualizarSeg(); render();
     });
+  }
+
+  const normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  function projetoDaAgenda(a, projetos) {
+    const cod = String(a.codigoPsa || '').toUpperCase(), nome = normTxt(a.projeto);
+    return projetos.find(p => (cod && String(p.codigoPsa || '').toUpperCase() === cod)) ||
+           projetos.find(p => nome && normTxt(p.projeto) === nome) || null;
+  }
+  function agendasDoProjeto(p) {
+    return DADOS.linhas.filter(a => a.tipo === 'Agenda' && !cancelada(a) && projetoDaAgenda(a, [p]));
   }
 
   // ---------- tabela ----------
@@ -197,6 +238,23 @@
     return ordem.desc ? -r : r;
   }
 
+  /** Na linha do Projeto: quanto já foi alocado em agendas. Na linha da Agenda: de qual projeto consome. */
+  function usoProjeto(l) {
+    if (cancelada(l)) return '';
+    if (l.tipo === 'Projeto Interno') {
+      const ags = agendasDoProjeto(l);
+      if (!ags.length) return '<div class="uso" style="color:#6b778c">sem agendas</div>';
+      const v = ags.reduce((a, x) => a + x.valorTotal, 0), h = ags.reduce((a, x) => a + x.horas, 0);
+      const pct = l.valorTotal ? Math.round(v / l.valorTotal * 100) : 0;
+      return `<div class="uso${pct > 100 ? ' estourou' : ''}" title="${ags.length} agenda(s): ${fmtNum(h)} h">📅 ${fmtMoeda(v)} (${pct}%)<br>saldo ${fmtMoeda(l.valorTotal - v)}</div>`;
+    }
+    if (l.tipo === 'Agenda') {
+      const p = projetoDaAgenda(l, DADOS.linhas.filter(x => x.tipo === 'Projeto Interno' && !cancelada(x)));
+      return p ? `<div class="uso" style="color:#6b778c">consome ${esc(p.issue)}</div>` : '<div class="uso" style="color:#b65c00">projeto fora do Controle</div>';
+    }
+    return '';
+  }
+
   function render() {
     kpis(DADOS.linhas);
     const linhas = filtradas();
@@ -221,7 +279,7 @@
         <td style="white-space:nowrap">${esc(l.de)}${l.ate ? ' → ' + esc(l.ate) : ''}</td>
         <td class="num">${l.valorHora ? fmtMoeda(l.valorHora) : ''}</td>
         <td class="num">${fmtNum(l.dias)} d<div class="sub">${fmtNum(l.horas)} h</div></td>
-        <td class="num"><b>${fmtMoeda(l.valorTotal)}</b></td>
+        <td class="num"><b>${fmtMoeda(l.valorTotal)}</b>${usoProjeto(l)}</td>
         <td>${esc(l.statusJira)}</td>
         <td style="white-space:nowrap">${l.numSolic ? (l.linkSolic ? `<a href="${esc(l.linkSolic)}">#${esc(l.numSolic)}</a>` : '#' + esc(l.numSolic)) : '<span class="sub">—</span>'}
           ${l.ticket ? `<div class="sub">🎫 ${l.linkTicket ? `<a href="${esc(l.linkTicket)}">#${esc(l.ticket)}</a>` : '#' + esc(l.ticket)}${l.statusTicket ? ' · <b>' + esc(l.statusTicket) + '</b>' : ''}</div>` : ''}</td>
