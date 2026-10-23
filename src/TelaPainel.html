@@ -131,7 +131,7 @@
         parent.postMessage({__painel:'call',aba:'__ABA__',id:id,fn:n,args:Array.prototype.slice.call(arguments)},'*');};}});}
     window.google={script:{run:runner(null,null,null),host:{
       close:function(){parent.postMessage({__painel:'close',aba:'__ABA__'},'*');},setHeight:function(){},setWidth:function(){}}}};
-    window.irParaAbaPainel=function(aba){parent.postMessage({__painel:'tab',aba:'__ABA__',tab:aba},'*');};
+    window.irParaAbaPainel=function(aba,extra){parent.postMessage({__painel:'tab',aba:'__ABA__',tab:aba,editar:extra&&extra.editar},'*');};
   })();<\/script>`;
 
   window.addEventListener('message', ev => {
@@ -149,6 +149,7 @@
       if (window.MODO_WEB) mostrar('controle'); else google.script.host.close();
     } else if (m.__painel === 'tab') {
       mostrar(m.tab);
+      if (m.editar) enviarParaTela(m.tab, { __painel: 'editar', issue: m.editar });
     }
   });
 
@@ -167,6 +168,8 @@
       f.srcdoc = html;
       // Formulário com algo digitado ganha um ponto amarelo na aba
       f.addEventListener('load', () => {
+        prontas[aba] = true;
+        if (pendentes[aba]) { f.contentWindow.postMessage(pendentes[aba], '*'); delete pendentes[aba]; }
         try {
           f.contentWindow.document.addEventListener('input', () => marcarSujo(aba, true), true);
         } catch (e) {}
@@ -174,6 +177,13 @@
     }).withFailureHandler(e => {
       box.innerHTML = `<div class="carregando" style="color:#bf2600">Não consegui carregar a tela: ${e.message}</div>`;
     }).obterHtmlTelaPainel(TELAS[aba]);
+  }
+
+  // Mensagem para uma tela; se ela ainda estiver carregando, entrega quando terminar
+  const pendentes = {}, prontas = {};
+  function enviarParaTela(aba, msg) {
+    if (prontas[aba] && frames[aba]) frames[aba].contentWindow.postMessage(msg, '*');
+    else pendentes[aba] = msg;
   }
 
   function marcarSujo(aba, sujo) {

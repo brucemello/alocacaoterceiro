@@ -63,6 +63,15 @@
     .feriados-opc { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; margin-top:5px; font-size:12px; }
     .feriados-opc label { display:flex; gap:5px; align-items:center; font-weight:normal; }
     .feriados-opc input[type=checkbox] { width:auto; }
+    .edicao { display:none; margin-top:10px; padding:10px 12px; border:2px solid #ffab00; background:#fffae6; border-radius:6px; }
+    .edicao.on { display:block; }
+    .edicao a { color:#0052cc; }
+    .linha-ed { display:flex; gap:8px; margin-top:6px; align-items:center; }
+    .linha-ed input { flex:1; }
+    .excecao { background:#fffaf2; border:1px solid #ffe2bd; border-radius:4px; padding:8px 10px; }
+    .excecao .chk { display:flex; gap:6px; align-items:center; font-weight:normal; font-size:12px; }
+    .excecao .chk::before { content:none !important; }
+    .excecao .chk input { width:auto; }
     .titulo-box { background:#fffae6; border:1px solid #ffe380; padding:7px 10px; border-radius:4px; margin-top:8px; font-size:12px; }
   </style>
 </head>
@@ -77,6 +86,15 @@
     <button class="secundario mini" onclick="abrirRascunho()">Abrir</button>
     <button class="secundario mini" onclick="novoFormulario()">Novo</button>
     <span id="statusRascunho" class="dica"></span>
+  </div>
+
+  <div class="edicao" id="boxEdicao">
+    <div><b>✏️ Editando a issue <a id="linkEdicao" href="#" target="_blank"></a></b>
+      <span class="dica">· ao salvar, título e descrição são reescritos no Jira, um comentário com as mudanças é adicionado e o Controle é atualizado.</span></div>
+    <div class="linha-ed">
+      <input id="motivoEdicao" placeholder="Motivo da alteração (vai no comentário da issue) — ex.: ajustes solicitados pelo gestor">
+      <button class="secundario mini" type="button" onclick="sairEdicao()">Sair da edição (criar nova a partir desta)</button>
+    </div>
   </div>
 
   <h3>Issue no Jira</h3>
@@ -130,7 +148,20 @@
         <button class="secundario mini" type="button" onclick="sincronizarFeriados(true)">📅 Atualizar feriados</button>
       </div>
       <div class="dica">Feriados que caem em dia útil entram sozinhos ao informar o período. Datas digitadas por você são mantidas. Tudo aqui é descontado do cálculo automático.</div></div>
-    <div class="campo vd full"><label>Observação</label><textarea id="observacao" rows="2"></textarea></div>
+    <div class="campo vd full excecao">
+      <label class="chk"><input type="checkbox" id="propostaExcecao" onchange="toggleExcecao()"> Requer <b>Proposta de Exceção de Valor de Alocação</b>
+        <span style="font-weight:normal;color:#6b778c">(valor hora acima do que é pago pelo papel cadastrado do consultor)</span></label>
+      <div class="grid3" id="boxExcecao" style="display:none;margin-top:8px">
+        <div class="campo az"><label>Valor da proposta (R$/hora)</label><input id="valorExcecao" inputmode="decimal" placeholder="igual ao valor hora negociado">
+          <div class="dica">Em branco = valor hora negociado.</div></div>
+        <div class="campo vd"><label>Valor cadastrado do papel (R$/hora)</label><input id="valorPapel" inputmode="decimal" placeholder="ex.: 95,00"></div>
+        <div></div>
+        <div class="campo az" style="grid-column:1/-1"><label>Justificativa da exceção (por que pagar acima do papel)</label>
+          <textarea id="justificativaExcecao" rows="2" placeholder="ex.: especialista em obrigações acessórias (SPED/Reinf), necessário para as entregas legais do período…"></textarea></div>
+      </div>
+    </div>
+    <div class="campo vd full"><label>Observação</label><textarea id="observacao" rows="2"></textarea>
+      <div class="dica">Se houver Proposta de Exceção, o texto dela entra antes desta observação na issue.</div></div>
   </div>
 
   <details id="boxEsp">
@@ -182,10 +213,11 @@
 <script>
   const $ = id => document.getElementById(id);
   var PROJETOS = {};   // projetos do Controle para os combos
+  var issueEditando = '', RASCUNHOS = [], editarPendente = '';
   var CFG = null, rascunhoId = '', alterado = false, tipoDesejado = '', camposDesejados = {}, defsCamposProjeto = [];
   const CAMPOS_TEXTO = ['projetoJira', 'epico', 'codigoRecurso', 'nomeRecurso', 'codigoProjeto', 'nomeProjeto',
     'consultoria', 'squad', 'valorHora', 'papel', 'dataDe', 'dataAte', 'email', 'naoAlocar', 'observacao',
-    'crmEpico', 'crmSubtarefa', 'horasDia'];
+    'crmEpico', 'crmSubtarefa', 'horasDia', 'valorExcecao', 'valorPapel', 'justificativaExcecao'];
 
   // ---------- utilidades ----------
   function num(v) {
@@ -292,6 +324,7 @@
     aplicarModoAuto();
     carregarListaRascunhos();
     carregarProjetosControle();
+    if (editarPendente) { const k = editarPendente; editarPendente = ''; setTimeout(() => editarIssue(k), 0); }
     $('selProjeto').addEventListener('change', () => aplicarProjeto(PROJETOS[$('selProjeto').value]));
     $('codigoProjeto').addEventListener('change', () => {
       const p = Object.values(PROJETOS).find(x => x.codigo === $('codigoProjeto').value.trim().toUpperCase());
@@ -481,7 +514,8 @@
   function coletar() {
     const d = { rascunhoId: rascunhoId, tipoIssueId: $('tipoIssue').value, camposProjeto: lerCamposProjeto(),
       autoCalc: modoAuto(), descontarFeriados: $('descontarFeriados').checked,
-      trazerFeriados: $('trazerFeriados').checked, incluirFacultativos: $('incluirFacultativos').checked };
+      trazerFeriados: $('trazerFeriados').checked, incluirFacultativos: $('incluirFacultativos').checked,
+      propostaExcecao: $('propostaExcecao').checked };
     CAMPOS_TEXTO.forEach(id => d[id] = $(id).value);
     d.diasEspecificos = Array.from({ length: 12 }, (_, i) => document.querySelector(`[data-esp="${i}"]`).value);
     d.meses = Array.from({ length: 12 }, (_, i) => ({ mes: CFG.meses[i], dias: inp(i, 'dias').value, horas: inp(i, 'horas').value }));
@@ -499,6 +533,7 @@
     $('autoCalc').checked = d.autoCalc !== false;
     $('descontarFeriados').checked = d.descontarFeriados !== false;
     $('trazerFeriados').checked = d.trazerFeriados !== false;
+    $('propostaExcecao').checked = !!d.propostaExcecao; toggleExcecao();
     $('incluirFacultativos').checked = !!d.incluirFacultativos;
     for (let i = 0; i < 12; i++) {
       const m = (d.meses || [])[i] || {};
@@ -519,6 +554,7 @@
 
   function carregarListaRascunhos(selecionar) {
     google.script.run.withSuccessHandler(lista => {
+      RASCUNHOS = lista;
       if (!lista.length) { $('selRascunho').innerHTML = '<option value="">— nenhum rascunho salvo —</option>'; return; }
       $('selRascunho').innerHTML = '<option value="">— selecione um rascunho —</option>' + lista.map(r =>
         `<option value="${r.id}">${r.status === 'Criada' ? '✅' : '📝'} ${escHtml(r.nome)} · ${r.quandoTxt} · ${escHtml(r.usuario)}${r.issue ? ' · ' + escHtml(r.issue) : ''}</option>`).join('');
@@ -544,16 +580,60 @@
     if (alterado && !confirm('Há alterações não salvas. Abrir o rascunho mesmo assim?')) return;
     google.script.run.withSuccessHandler(d => {
       preencher(d); rascunhoId = id; alterado = false;
+      const r = RASCUNHOS.find(x => x.id === id);
+      definirEdicao(r && r.status === 'Criada' && /^[A-Z][A-Z0-9_]+-\d+$/.test(r.issue) ? r.issue : '');
       $('statusRascunho').textContent = '✔ rascunho aberto'; $('boxPrevia').style.display = 'none';
-      mostrar('Rascunho carregado. Revise e clique em <b>Revisar</b>.', 'ok');
+      mostrar(issueEditando ? `Issue <b>${issueEditando}</b> carregada para edição. Corrija, clique em <b>Revisar</b> e depois em <b>Atualizar issue</b>.`
+        : 'Rascunho carregado. Revise e clique em <b>Revisar</b>.', 'ok');
     }).withFailureHandler(e => mostrar('Erro: ' + e.message, 'erro')).carregarRascunhoAG(id);
   }
+
+  // ---------- modo edição ----------
+  function definirEdicao(key) {
+    issueEditando = key || '';
+    $('boxEdicao').classList.toggle('on', !!issueEditando);
+    if (issueEditando) {
+      $('linkEdicao').textContent = issueEditando;
+      $('linkEdicao').href = (CFG.jiraUrl || 'https://jiraproducao.totvs.com.br') + '/browse/' + issueEditando;
+    }
+    ['projetoJira', 'tipoIssue', 'epico'].forEach(id => { $(id).disabled = !!issueEditando; });
+    $('boxCamposProjeto').style.display = issueEditando ? 'none' : '';
+    $('btnCriar').textContent = issueEditando ? '💾 Atualizar issue no Jira' : 'Confirmar e criar';
+    $('motivoEdicao').value = '';
+  }
+
+  function sairEdicao() {
+    if (!confirm('Sair da edição? O formulário continua preenchido e o próximo "Confirmar e criar" abre uma NOVA issue.')) return;
+    definirEdicao('');
+    rascunhoId = ''; $('selRascunho').value = ''; marcarAlterado();
+    mostrar('Fora do modo edição: os dados viraram um novo rascunho.', 'info');
+  }
+
+  /** Chamado pelo painel (✏️ na aba Controle) ou pela busca por chave. */
+  function editarIssue(key) {
+    key = String(key || '').trim().toUpperCase();
+    if (!key) return;
+    if (!CFG) { editarPendente = key; return; }        // ainda carregando o formulário
+    if (alterado && !confirm(`Há alterações não salvas. Abrir ${key} para edição mesmo assim?`)) return;
+    mostrar(`Carregando ${key}…`, 'info');
+    google.script.run.withSuccessHandler(r => {
+      preencher(r.dados); rascunhoId = r.rascunhoId || ''; alterado = false;
+      definirEdicao(key);
+      if (rascunhoId) $('selRascunho').value = rascunhoId;
+      $('boxPrevia').style.display = 'none';
+      mostrar(`Issue <b>${key}</b> carregada ${r.origem === 'jira' ? 'a partir da descrição no Jira (confira os campos)' : 'do rascunho'}. ` +
+        'Corrija, clique em <b>Revisar</b> e depois em <b>💾 Atualizar issue no Jira</b>.', r.origem === 'jira' ? 'info' : 'ok');
+      window.scrollTo(0, 0);
+    }).withFailureHandler(e => mostrar('❌ ' + e.message, 'erro')).carregarAgendaParaEdicao(key);
+  }
+  window.addEventListener('message', ev => { if (ev.data && ev.data.__painel === 'editar') editarIssue(ev.data.issue); });
 
   function novoFormulario() {
     if (alterado && !confirm('Há alterações não salvas. Começar um formulário novo mesmo assim?')) return;
     preencher({ projetoJira: CFG.projetoPadrao, epico: CFG.epicoPadrao, horasDia: '8' });
     rascunhoId = ''; alterado = false; $('selRascunho').value = ''; $('statusRascunho').textContent = '';
     $('boxPrevia').style.display = 'none'; $('msg').style.display = 'none';
+    definirEdicao('');
   }
 
   function fechar() {
@@ -566,7 +646,8 @@
     'Código Recurso': 'codigoRecurso', 'Nome Completo do Recurso': 'nomeRecurso', 'Código do Projeto': 'codigoProjeto',
     'Nome do Projeto': 'nomeProjeto', 'Nome do SQUAD': 'squad', 'Papel/Categoria': 'papel',
     'Período - De': 'dataDe', 'Período - Até': 'dataAte', 'E-mail do Recurso': 'email',
-    'Valor hora negociado': 'valorHora', 'Tabela 02': 'linDias', 'data "Até"': 'dataAte'
+    'Valor hora negociado': 'valorHora', 'Tabela 02': 'linDias', 'data "Até"': 'dataAte',
+    'Valor da Proposta': 'valorExcecao', 'Justificativa da Proposta': 'justificativaExcecao'
   };
   function destacarFaltantes(msg) {
     document.querySelectorAll('.faltando').forEach(el => el.classList.remove('faltando'));
@@ -585,6 +666,36 @@
     return defsCamposProjeto.filter(d => { const v = vals[d.id]; return Array.isArray(v) ? !v.length : !String(v || '').trim(); });
   }
 
+  function toggleExcecao() { $('boxExcecao').style.display = $('propostaExcecao').checked ? 'grid' : 'none'; }
+
+  /** Datas citadas (Não alocar, Observação, Dias específicos) que caem fora do período De/Até. */
+  function datasForaDoPeriodo() {
+    const de = parseData($('dataDe').value), ate = parseData($('dataAte').value);
+    if (!de || !ate) return [];
+    const quando = (dd, mm) => {
+      let y = de.getFullYear();
+      if (mm - 1 < de.getMonth() && ate.getFullYear() > y) y++;
+      return new Date(y, mm - 1, dd);
+    };
+    const fora = [];
+    const checar = (txt, origem) => (String(txt || '').match(/\b(\d{1,2})\/(\d{1,2})\b(?!\/\d)/g) || []).forEach(t => {
+      const [dd, mm] = t.split('/').map(Number);
+      if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return;
+      const d = quando(dd, mm);
+      if (d < de || d > ate) fora.push(`${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')} (${origem})`);
+    });
+    checar($('naoAlocar').value, 'Não alocar');
+    checar($('observacao').value, 'Observação');
+    document.querySelectorAll('[data-esp]').forEach(el => {
+      const mm = +el.dataset.esp + 1;
+      (el.value.match(/\d{1,2}/g) || []).forEach(dd => {
+        const d = quando(+dd, mm);
+        if (d < de || d > ate) fora.push(`${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')} (Dias específicos)`);
+      });
+    });
+    return fora;
+  }
+
   // ---------- prévia e criação ----------
   function gerarPrevia() {
     mostrar('Montando prévia…', 'info');
@@ -592,12 +703,17 @@
       $('previaTitulo').textContent = p.titulo; $('previaDescricao').textContent = p.descricao;
       $('boxPrevia').style.display = 'block'; $('btnCriar').disabled = false;
       $('boxPrevia').scrollIntoView({ behavior: 'smooth' });
-      mostrar('Confira a prévia e clique em <b>Confirmar e criar</b>. (prévia salva como rascunho)', 'info');
+      const fora = datasForaDoPeriodo();
+      const aviso = fora.length ? `<br>⚠️ <b>Atenção:</b> datas fora do período ${$('dataDe').value.split('-').reverse().join('/')} a ` +
+        `${$('dataAte').value.split('-').reverse().join('/')}: ${fora.join(', ')}. Ajuste o período ou retire essas datas para não confundir o aprovador.` : '';
+      mostrar((issueEditando ? `Confira a prévia e clique em <b>💾 Atualizar issue no Jira</b> para gravar em ${issueEditando}.`
+        : 'Confira a prévia e clique em <b>Confirmar e criar</b>. (prévia salva como rascunho)') + aviso, fora.length ? 'erro' : 'info');
       salvarRascunho(true);
     }).withFailureHandler(e => { mostrar('❌ ' + e.message, 'erro'); destacarFaltantes(e.message); }).gerarPreviaAgenda(coletar());
   }
 
   function criar() {
+    if (issueEditando) return atualizarIssue();
     const falta = faltandoCamposProjeto();
     if (falta.length) {
       mostrar('❌ Preencha os campos obrigatórios do projeto: ' + falta.map(d => d.nome).join(', '), 'erro');
@@ -614,7 +730,27 @@
       if (r.rascunhoId) rascunhoId = r.rascunhoId;
       $('statusRascunho').textContent = `✅ criada como ${r.key}`;
       carregarListaRascunhos(rascunhoId);
+      definirEdicao(r.key);   // novas alterações passam a atualizar esta issue (evita duplicar)
     }).withFailureHandler(e => { mostrar('❌ ' + e.message, 'erro'); $('btnPrevia').disabled = false; }).criarIssueAgenda(coletar());
+  }
+
+  function atualizarIssue() {
+    if (!confirm(`Atualizar a issue ${issueEditando} no Jira com estes dados?`)) return;
+    $('btnCriar').disabled = true; $('btnPrevia').disabled = true;
+    mostrar(`Atualizando ${issueEditando} no Jira…`, 'info');
+    google.script.run.withSuccessHandler(r => {
+      $('btnPrevia').disabled = false; alterado = false;
+      if (r.rascunhoId) rascunhoId = r.rascunhoId;
+      const lista = r.mudancas.length
+        ? '<ul style="margin:4px 0 0 18px;padding:0">' + r.mudancas.map(m => `<li><b>${escHtml(m.campo)}:</b> ${escHtml(m.de || '—')} → ${escHtml(m.para || '—')}</li>`).join('') + '</ul>'
+        : ' (nenhuma diferença nos campos principais — descrição regravada)';
+      mostrar(`✅ <a href="${r.url}" target="_blank">${r.key}</a> atualizada${r.comentario ? ' e comentário adicionado' : ''}.${lista}` +
+        (r.avisoComentario ? `<br>⚠️ ${escHtml(r.avisoComentario)}` : ''), r.avisoComentario ? 'info' : 'ok');
+      $('statusRascunho').textContent = `✅ ${r.key} atualizada`;
+      $('motivoEdicao').value = '';
+      carregarListaRascunhos(rascunhoId);
+    }).withFailureHandler(e => { mostrar('❌ ' + escHtml(e.message), 'erro'); $('btnPrevia').disabled = false; $('btnCriar').disabled = false; })
+      .atualizarIssueAgenda(coletar(), issueEditando, $('motivoEdicao').value);
   }
 </script>
 </body>

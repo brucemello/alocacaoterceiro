@@ -11,6 +11,7 @@
     button { padding:7px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px; white-space:nowrap; }
     .primario { background:var(--azul2); color:#fff; } .secundario { background:#ebecf0; color:#172b4d; }
     .novo { background:#00875a; color:#fff; }
+    .mini { padding:4px 8px; font-size:11px; }
     button:disabled { opacity:.5; cursor:default; }
     .kpis { display:grid; grid-template-columns: repeat(6, minmax(105px, 1fr)); gap:10px; margin-bottom:10px; }
     .valores { display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-bottom:12px; }
@@ -97,6 +98,7 @@
   <div class="tabela">
     <table>
       <thead><tr>
+        <th style="cursor:default"></th>
         <th data-o="tipo">Tipo</th>
         <th data-o="issue">Issue</th>
         <th data-o="abertaTs">Aberta em</th>
@@ -113,7 +115,7 @@
         <th data-o="statusControle" class="man">Status Controle ✎</th>
         <th data-o="obs" class="man">Observações ✎</th>
       </tr></thead>
-      <tbody id="corpo"><tr><td colspan="15" class="vazio">Carregando…</td></tr></tbody>
+      <tbody id="corpo"><tr><td colspan="16" class="vazio">Carregando…</td></tr></tbody>
     </table>
   </div>
   <div class="rodape"><span id="contagem"></span><span>Colunas ✎ são editáveis aqui e gravam direto na planilha. Verde = vem do Jira.</span></div>
@@ -135,6 +137,11 @@
     }).withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).irParaAbaControle();
   }
 
+  function editarAgenda(key) {
+    if (window.irParaAbaPainel) window.irParaAbaPainel('agenda', { editar: key });
+    else mostrarMsg('Abra pelo painel (menu 🦇 → 🧭 Abrir Painel) para editar a agenda.', 'info');
+  }
+
   function irPara(aba) {
     if (window.irParaAbaPainel) window.irParaAbaPainel(aba);
     else google.script.run[aba === 'agenda' ? 'abrirTelaAgenda' : 'abrirTelaProjetoInterno']();
@@ -142,7 +149,7 @@
 
   // ---------- carga ----------
   function carregar(silencioso) {
-    if (!silencioso) $('corpo').innerHTML = '<tr><td colspan="15" class="vazio">Carregando…</td></tr>';
+    if (!silencioso) $('corpo').innerHTML = '<tr><td colspan="16" class="vazio">Carregando…</td></tr>';
     google.script.run.withSuccessHandler(d => {
       DADOS = d;
       const sel = $('fStatus'), atual = sel.value;
@@ -150,7 +157,7 @@
         d.statusOpcoes.map(s => `<option${s === atual ? ' selected' : ''}>${esc(s)}</option>`).join('');
       render();
     }).withFailureHandler(e => {
-      $('corpo').innerHTML = `<tr><td colspan="15" class="vazio" style="color:#bf2600">Erro ao ler o controle: ${esc(e.message)}</td></tr>`;
+      $('corpo').innerHTML = `<tr><td colspan="16" class="vazio" style="color:#bf2600">Erro ao ler o controle: ${esc(e.message)}</td></tr>`;
     }).obterDadosControle();
   }
 
@@ -261,7 +268,7 @@
     const opc = DADOS.statusOpcoes;
     $('contagem').textContent = `${linhas.length} de ${DADOS.linhas.length} solicitações`;
     if (!linhas.length) {
-      $('corpo').innerHTML = `<tr><td colspan="15" class="vazio">${DADOS.linhas.length ? 'Nenhuma solicitação com esses filtros.' : 'Nenhuma solicitação no controle ainda. Crie um Projeto Interno ou uma Agenda, ou importe issues existentes.'}</td></tr>`;
+      $('corpo').innerHTML = `<tr><td colspan="16" class="vazio">${DADOS.linhas.length ? 'Nenhuma solicitação com esses filtros.' : 'Nenhuma solicitação no controle ainda. Crie um Projeto Interno ou uma Agenda, ou importe issues existentes.'}</td></tr>`;
       return;
     }
     $('corpo').innerHTML = linhas.map(l => {
@@ -270,6 +277,7 @@
       const statusOpts = (opc.indexOf(l.statusControle) === -1 && l.statusControle ? [l.statusControle] : []).concat(opc)
         .map(s => `<option${s === l.statusControle ? ' selected' : ''}>${esc(s)}</option>`).join('');
       return `<tr class="${cancelada(l) ? 'cancelado' : ''}">
+        <td>${l.tipo === 'Agenda' && !cancelada(l) ? `<button class="secundario mini" title="Editar esta agenda e atualizar a issue" onclick="editarAgenda('${esc(l.issue)}')">✏️</button>` : ''}</td>
         <td><span class="tipo ${cls}">${esc(l.tipo)}</span></td>
         <td><a href="${url}">${esc(l.issue)}</a><div class="sub">${esc(l.solicitante)}</div></td>
         <td>${esc(l.abertaEm.split(' ')[0])}</td>

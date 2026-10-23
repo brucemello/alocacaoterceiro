@@ -171,6 +171,21 @@ function resumoParaControle_(tipo, d) {
   };
 }
 
+/** Atualiza os dados negociados de uma linha existente (ou cria, se não houver). */
+function atualizarLinhaControle_(tipo, key, url, dados) {
+  const aba = abaControle_();
+  const linha = linhaControlePorIssue_(aba, key);
+  if (!linha) { registrarNoControle_(tipo, key, url, dados); return; }
+  const r = resumoParaControle_(tipo, dados);
+  const set = (c, v) => aba.getRange(linha, C_CT[c]).setValue(v);
+  if (r.codigoProjeto) set('Código Projeto (PSA)', r.codigoProjeto);
+  set('Projeto', r.projeto); set('Squad', r.squad);
+  if (tipo === 'Agenda' || r.analista) set('Analista / Recurso', r.analista);
+  set('Período De', r.de); set('Período Até', r.ate); set('Valor Hora (R$)', r.valorHora);
+  set('Dias', r.dias); set('Horas', r.horas); set('Valor Total (R$)', r.valorTotal);
+  set('Última atualização', new Date());
+}
+
 function linhaControlePorIssue_(aba, key) {
   if (aba.getLastRow() < 2) return 0;
   const keys = aba.getRange(2, C_CT['Issue'], aba.getLastRow() - 1, 1).getDisplayValues();
