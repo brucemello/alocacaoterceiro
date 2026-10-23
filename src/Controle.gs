@@ -12,13 +12,21 @@ const CONFIG_CT = {
   STATUS_CONTROLE: ['Aguardando solicitação', 'Solicitação aberta', 'Aprovado', 'Em andamento',
     'Encerrado', 'Cancelado'],
   // Padrão do comentário automático com o número da solicitação
-  REGEX_SOLICITACAO: /Solicita[çc][ãa]o\s*\[?\s*#?\s*(\d{4,})/i
+  REGEX_SOLICITACAO: /Solicita[çc][ãa]o\s*\[?\s*#?\s*(\d{4,})/i,
+  // Ticket do suporte: "solicitação nº #3107383" / "Solicitação nº: [3107383|tel:...]"
+  REGEX_TICKET: /solicita[çc][ãa]o\s*\*?\s*n[ºo°.]{1,2}\s*:?\s*[*\[\s#]*(\d{5,})/i,
+  REGEX_STATUS_TICKET: /[ÚU]ltimo\s+status\s*:?\s*\*?\s*([^\n*|\\]+)/i,
+  // Código do projeto criado no PSA: "projeto D000086713001 aberto"
+  REGEX_COD_PSA: /\b(D\d{12})\b/,
+  // Status de controle que avançam sozinhos quando o código PSA aparece
+  AVANCA_COM_PSA: ['Aguardando solicitação', 'Solicitação aberta']
 };
 
 const COLS_CT = [
   'Tipo', 'Issue', 'Aberta em', 'Solicitante', 'Código Projeto (PSA)', 'Projeto', 'Analista / Recurso',
   'Squad', 'Período De', 'Período Até', 'Valor Hora (R$)', 'Dias', 'Horas', 'Valor Total (R$)',
-  'Status Jira', 'Nº Solicitação', 'Link Solicitação', 'Status Controle', 'Observações', 'Última atualização'
+  'Status Jira', 'Nº Solicitação', 'Link Solicitação', 'Status Controle', 'Observações', 'Última atualização',
+  'Nº Ticket', 'Status Ticket', 'Última resposta'
 ];
 const C_CT = {}; COLS_CT.forEach((n, i) => C_CT[n] = i + 1);
 
@@ -28,7 +36,7 @@ const C_CT = {}; COLS_CT.forEach((n, i) => C_CT[n] = i + 1);
 function abaControle_() {
   const ss = planilha_();
   let aba = ss.getSheetByName(CONFIG_CT.ABA);
-  if (aba) return aba;
+  if (aba) { garantirColunasControle_(aba); return aba; }
 
   aba = ss.insertSheet(CONFIG_CT.ABA, 0);
   aba.getRange(1, 1, 1, COLS_CT.length).setValues([COLS_CT])
@@ -50,6 +58,17 @@ function abaControle_() {
   COLS_CT.forEach((n, i) => aba.setColumnWidth(i + 1, larguras[n] || 105));
   formatarColunasControle_(aba);
   return aba;
+}
+
+/** Acrescenta no fim as colunas que surgirem em versões novas (sem mexer nos dados). */
+function garantirColunasControle_(aba) {
+  const atual = aba.getLastColumn();
+  if (atual >= COLS_CT.length) return;
+  if (aba.getMaxColumns() < COLS_CT.length) aba.insertColumnsAfter(aba.getMaxColumns(), COLS_CT.length - aba.getMaxColumns());
+  const novas = COLS_CT.slice(atual);
+  aba.getRange(1, atual + 1, 1, novas.length).setValues([novas])
+    .setFontWeight('bold').setBackground('#00875a').setFontColor('#ffffff').setWrap(true).setVerticalAlignment('middle');
+  novas.forEach((n, i) => aba.setColumnWidth(atual + 1 + i, n === 'Última resposta' ? 340 : 110));
 }
 
 function formatarColunasControle_(aba) {
@@ -204,6 +223,8 @@ function atualizarControle() {
     (importados ? `Importadas dos rascunhos: ${importados}\n` : '') +
     (r.analistasVinculados ? `👤 Projetos com analistas trazidos das Agendas: ${r.analistasVinculados}\n` : '') +
     (r.canceladas ? `🚫 Marcadas como Cancelado (canceladas no Jira): ${r.canceladas}\n` : '') +
+    (r.novosTickets ? `🎫 Tickets novos do suporte: ${r.novosTickets}\n` : '') +
+    (r.codigosPsa ? `✅ Projetos com código PSA preenchido: ${r.codigosPsa}\n` : '') +
     (r.erros.length ? `\n⚠️ Não encontradas no Jira: ${r.erros.join(', ')}` : ''),
     ui.ButtonSet.OK);
 }
@@ -230,17 +251,19 @@ function atualizarControleSilencioso_() {
 
   // Reforço: se a busca não trouxe o nº, lê os comentários direto da issue
   Object.keys(info).forEach(key => {
-    if (info[key].numero) return;
+    if (info[key].temComentarios && (info[key].numero || info[key].ticket)) return;
     try {
       const comentarios = buscarComentariosIssue_(key);
       const it = extrairInfoIssue_({ fields: { status: { name: info[key].status }, comment: { comments: comentarios } } });
-      if (it.numero) info[key] = it;
+      if (it.numero || it.ticket || it.codigoPsa) info[key] = it;
     } catch (e) {}
   });
 
   const agora = new Date();
   const colSt = C_CT['Status Jira'], colNum = C_CT['Nº Solicitação'], colLink = C_CT['Link Solicitação'];
   const colCtl = C_CT['Status Controle'], colUpd = C_CT['Última atualização'];
+  const colTk = C_CT['Nº Ticket'], colStTk = C_CT['Status Ticket'], colResp = C_CT['Última resposta'];
+  const colCod = C_CT['Código Projeto (PSA)'];
   const atuais = aba.getRange(2, 1, n, COLS_CT.length).getValues();
 
   keys.forEach((key, idx) => {
@@ -258,6 +281,26 @@ function atualizarControleSilencioso_() {
         ? `=HYPERLINK("${it.link}"; "Acessar #${it.numero}")` : '');
       if (atuais[idx][colCtl - 1] === 'Aguardando solicitação') aba.getRange(linha, colCtl).setValue('Solicitação aberta');
     }
+    // Ticket do suporte
+    if (it.ticket) {
+      if (String(atuais[idx][colTk - 1]) !== String(it.ticket)) res.novosTickets = (res.novosTickets || 0) + 1;
+      if (it.linkTicket) aba.getRange(linha, colTk).setFormula(`=HYPERLINK("${it.linkTicket}"; "${it.ticket}")`);
+      else aba.getRange(linha, colTk).setValue(it.ticket);
+      if (atuais[idx][colCtl - 1] === 'Aguardando solicitação') aba.getRange(linha, colCtl).setValue('Solicitação aberta');
+    }
+    if (it.statusTicket) aba.getRange(linha, colStTk).setValue(it.statusTicket);
+    if (it.ultimaResposta) aba.getRange(linha, colResp).setValue(it.ultimaResposta);
+
+    // Projeto criado no PSA: preenche o código (sem sobrescrever) e avança o status
+    if (it.codigoPsa && !String(atuais[idx][colCod - 1] || '').trim()) {
+      aba.getRange(linha, colCod).setValue(it.codigoPsa);
+      res.codigosPsa = (res.codigosPsa || 0) + 1;
+      if (CONFIG_CT.AVANCA_COM_PSA.indexOf(String(atuais[idx][colCtl - 1])) !== -1 ||
+          (it.ticket && atuais[idx][colCtl - 1] === 'Aguardando solicitação')) {
+        aba.getRange(linha, colCtl).setValue('Aprovado');
+      }
+    }
+
     // Cancelada no Jira → Cancelado no controle (sai das horas e do valor)
     if (/cancel/i.test(it.status) && atuais[idx][colCtl - 1] !== 'Cancelado') {
       aba.getRange(linha, colCtl).setValue('Cancelado');
@@ -316,21 +359,74 @@ function vincularAnalistasDasAgendas_(aba) {
   return alterados;
 }
 
-/** Status atual e nº/link da solicitação a partir dos comentários (o mais recente vence). */
+/**
+ * Lê os comentários da issue (o mais recente vence em cada informação):
+ *  - nº/link da solicitação Fluig ("Solicitação 5370347 iniciada com sucesso")
+ *  - nº/link do ticket do suporte ("solicitação nº #3107383")
+ *  - último status do ticket ("Último status: Pendente")
+ *  - código do projeto criado no PSA ("projeto D000086713001 aberto")
+ *  - última resposta do atendimento (texto resumido)
+ */
 function extrairInfoIssue_(issue) {
   const f = issue.fields || {};
+  const temComentarios = !!(f.comment && f.comment.comments);
   const comentarios = ((f.comment && f.comment.comments) || []).slice().reverse();
-  let numero = '', link = '';
+  const r = { status: (f.status && f.status.name) || '', numero: '', link: '', ticket: '', linkTicket: '',
+    statusTicket: '', codigoPsa: '', ultimaResposta: '', temComentarios: temComentarios };
+
   for (const c of comentarios) {
     const corpo = String(c.body || '');
-    const m = corpo.match(CONFIG_CT.REGEX_SOLICITACAO);
-    if (!m) continue;
-    numero = m[1];
-    const urls = corpo.match(/https?:\/\/[^\s\]|"<>]+/g) || [];
-    link = urls.find(u => u.indexOf(numero) !== -1) || urls[0] || '';
-    break;
+    const ehTicket = CONFIG_CT.REGEX_TICKET.test(corpo);
+
+    if (ehTicket) {
+      if (!r.ticket) r.ticket = corpo.match(CONFIG_CT.REGEX_TICKET)[1];
+      if (!r.linkTicket && r.ticket) {   // o link pode estar num comentário mais antigo do mesmo ticket
+        const mLink = corpo.match(new RegExp('\\[\\s*\\*?#?\\s*' + r.ticket + '\\s*\\*?\\s*\\|\\s*(https?:[^\\]\\s]+)\\]'));
+        if (mLink) r.linkTicket = mLink[1];
+      }
+      if (!r.statusTicket) {
+        const st = corpo.match(CONFIG_CT.REGEX_STATUS_TICKET);
+        if (st) r.statusTicket = limparTextoComentario_(st[1]).substring(0, 60);
+      }
+      if (!r.ultimaResposta && /atualizad|respond|conforme|aberto|encerrad|conclu/i.test(corpo)) {
+        r.ultimaResposta = resumoRespostaTicket_(c);
+      }
+    } else if (!r.numero) {
+      const m = corpo.match(CONFIG_CT.REGEX_SOLICITACAO);
+      if (m) {
+        r.numero = m[1];
+        const urls = corpo.match(/https?:\/\/[^\s\]|"<>]+/g) || [];
+        r.link = urls.find(u => u.indexOf(r.numero) !== -1) || urls[0] || '';
+      }
+    }
+
+    if (!r.codigoPsa && /projeto/i.test(corpo)) {
+      const cod = corpo.match(CONFIG_CT.REGEX_COD_PSA);
+      if (cod && !/D0000[9]{8}/.test(cod[1])) r.codigoPsa = cod[1];
+    }
   }
-  return { status: (f.status && f.status.name) || '', numero: numero, link: link };
+  return r;
+}
+
+/** Texto da resposta do atendimento, sem marcação do Jira, resumido. */
+function resumoRespostaTicket_(c) {
+  let t = limparTextoComentario_(c.body || '');
+  const i = t.search(/foi atualizada\.?/i);
+  if (i !== -1) t = t.substring(i).replace(/^foi atualizada\.?\s*/i, '');
+  const quando = c.created ? Utilities.formatDate(new Date(c.created), Session.getScriptTimeZone(), 'dd/MM HH:mm') + ' · ' : '';
+  return (quando + t).substring(0, 300);
+}
+
+function limparTextoComentario_(s) {
+  return String(s || '')
+    .replace(/\{(color|panel|quote|noformat|code)(:[^}]*)?\}/g, ' ')
+    .replace(/\[([^\]|]*)\|[^\]]*\]/g, '$1')
+    .replace(/\\\\/g, ' ')
+    .replace(/[|*_+^]/g, ' ')
+    .replace(/^h\d\.\s*/gm, '')
+    .replace(/-{4,}/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /************************************************************

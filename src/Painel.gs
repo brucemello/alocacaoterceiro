@@ -72,7 +72,7 @@ function obterHtmlTelaPainel(nome) {
  * CONTROLE
  ************************************************************/
 function obterDadosControle() {
-  const aba = planilha_().getSheetByName(CONFIG_CT.ABA);
+  const aba = planilha_().getSheetByName(CONFIG_CT.ABA) ? abaControle_() : null;   // abaControle_ acrescenta colunas novas
   const base = {
     linhas: [], statusOpcoes: CONFIG_CT.STATUS_CONTROLE,
     autoAtivo: autoAtualizacaoAtiva_(), jiraUrl: CONFIG.JIRA_BASE_URL
@@ -83,6 +83,7 @@ function obterDadosControle() {
   const txt = aba.getRange(2, 1, n, COLS_CT.length).getDisplayValues();
   const raw = aba.getRange(2, 1, n, COLS_CT.length).getValues();
   const forms = aba.getRange(2, C_CT['Link Solicitação'], n, 1).getFormulas();
+  const formsTk = aba.getRange(2, C_CT['Nº Ticket'], n, 1).getFormulas();
 
   base.linhas = txt.map((t, i) => {
     const g = nome => t[C_CT[nome] - 1];
@@ -97,7 +98,9 @@ function obterDadosControle() {
       horas: Number(v('Horas')) || 0, valorTotal: Number(v('Valor Total (R$)')) || 0,
       statusJira: g('Status Jira'), numSolic: g('Nº Solicitação'),
       linkSolic: (String(forms[i][0] || '').match(/HYPERLINK\("([^"]+)"/) || [])[1] || '',
-      statusControle: g('Status Controle'), obs: g('Observações'), atualizado: g('Última atualização')
+      statusControle: g('Status Controle'), obs: g('Observações'), atualizado: g('Última atualização'),
+      ticket: g('Nº Ticket'), statusTicket: g('Status Ticket'), ultimaResposta: g('Última resposta'),
+      linkTicket: (String(formsTk[i][0] || '').match(/HYPERLINK\("([^"]+)"/) || [])[1] || ''
     };
   }).filter(l => l.issue);
   return base;

@@ -27,7 +27,7 @@
     select, input { padding:6px 7px; border:1px solid #c1c7d0; border-radius:4px; font-size:12px; font-family:inherit; }
     #busca { min-width:260px; }
     .tabela { border:1px solid var(--borda); border-radius:6px; overflow:auto; max-height:calc(100vh - 290px); }
-    table { border-collapse:collapse; width:100%; min-width:1500px; }
+    table { border-collapse:collapse; width:100%; min-width:1760px; }
     th { position:sticky; top:0; background:var(--azul); color:#fff; text-align:left; padding:7px 8px; font-size:11px; z-index:1; white-space:nowrap; cursor:pointer; }
     th.jira { background:var(--verde); } th.man { background:#ffab00; color:#172b4d; }
     td { border-bottom:1px solid var(--borda); padding:6px 8px; vertical-align:top; }
@@ -92,11 +92,12 @@
         <th data-o="horas">Dias / Horas</th>
         <th data-o="valorTotal">Valor Total</th>
         <th data-o="statusJira" class="jira">Status Jira</th>
-        <th data-o="numSolic" class="jira">Nº Solicitação</th>
+        <th data-o="numSolic" class="jira">Solicitação / Ticket</th>
+        <th data-o="ultimaResposta" class="jira">Última resposta</th>
         <th data-o="statusControle" class="man">Status Controle ✎</th>
         <th data-o="obs" class="man">Observações ✎</th>
       </tr></thead>
-      <tbody id="corpo"><tr><td colspan="14" class="vazio">Carregando…</td></tr></tbody>
+      <tbody id="corpo"><tr><td colspan="15" class="vazio">Carregando…</td></tr></tbody>
     </table>
   </div>
   <div class="rodape"><span id="contagem"></span><span>Colunas ✎ são editáveis aqui e gravam direto na planilha. Verde = vem do Jira.</span></div>
@@ -125,7 +126,7 @@
 
   // ---------- carga ----------
   function carregar(silencioso) {
-    if (!silencioso) $('corpo').innerHTML = '<tr><td colspan="14" class="vazio">Carregando…</td></tr>';
+    if (!silencioso) $('corpo').innerHTML = '<tr><td colspan="15" class="vazio">Carregando…</td></tr>';
     google.script.run.withSuccessHandler(d => {
       DADOS = d;
       const sel = $('fStatus'), atual = sel.value;
@@ -133,7 +134,7 @@
         d.statusOpcoes.map(s => `<option${s === atual ? ' selected' : ''}>${esc(s)}</option>`).join('');
       render();
     }).withFailureHandler(e => {
-      $('corpo').innerHTML = `<tr><td colspan="14" class="vazio" style="color:#bf2600">Erro ao ler o controle: ${esc(e.message)}</td></tr>`;
+      $('corpo').innerHTML = `<tr><td colspan="15" class="vazio" style="color:#bf2600">Erro ao ler o controle: ${esc(e.message)}</td></tr>`;
     }).obterDadosControle();
   }
 
@@ -186,7 +187,7 @@
 
   function passaBusca(l, q) {
     if (!q) return true;
-    const alvo = [l.issue, l.projeto, l.analista, l.codigoPsa, l.squad, l.numSolic, l.solicitante, l.statusJira, l.obs].join(' ').toLowerCase();
+    const alvo = [l.issue, l.projeto, l.analista, l.codigoPsa, l.squad, l.numSolic, l.ticket, l.statusTicket, l.solicitante, l.statusJira, l.obs].join(' ').toLowerCase();
     return alvo.indexOf(q) !== -1;
   }
 
@@ -202,7 +203,7 @@
     const opc = DADOS.statusOpcoes;
     $('contagem').textContent = `${linhas.length} de ${DADOS.linhas.length} solicitações`;
     if (!linhas.length) {
-      $('corpo').innerHTML = `<tr><td colspan="14" class="vazio">${DADOS.linhas.length ? 'Nenhuma solicitação com esses filtros.' : 'Nenhuma solicitação no controle ainda. Crie um Projeto Interno ou uma Agenda, ou importe issues existentes.'}</td></tr>`;
+      $('corpo').innerHTML = `<tr><td colspan="15" class="vazio">${DADOS.linhas.length ? 'Nenhuma solicitação com esses filtros.' : 'Nenhuma solicitação no controle ainda. Crie um Projeto Interno ou uma Agenda, ou importe issues existentes.'}</td></tr>`;
       return;
     }
     $('corpo').innerHTML = linhas.map(l => {
@@ -222,7 +223,9 @@
         <td class="num">${fmtNum(l.dias)} d<div class="sub">${fmtNum(l.horas)} h</div></td>
         <td class="num"><b>${fmtMoeda(l.valorTotal)}</b></td>
         <td>${esc(l.statusJira)}</td>
-        <td>${l.numSolic ? (l.linkSolic ? `<a href="${esc(l.linkSolic)}">#${esc(l.numSolic)}</a>` : '#' + esc(l.numSolic)) : '<span class="sub">—</span>'}</td>
+        <td style="white-space:nowrap">${l.numSolic ? (l.linkSolic ? `<a href="${esc(l.linkSolic)}">#${esc(l.numSolic)}</a>` : '#' + esc(l.numSolic)) : '<span class="sub">—</span>'}
+          ${l.ticket ? `<div class="sub">🎫 ${l.linkTicket ? `<a href="${esc(l.linkTicket)}">#${esc(l.ticket)}</a>` : '#' + esc(l.ticket)}${l.statusTicket ? ' · <b>' + esc(l.statusTicket) + '</b>' : ''}</div>` : ''}</td>
+        <td style="min-width:260px;max-width:340px">${l.ultimaResposta ? `<span title="${esc(l.ultimaResposta)}">${esc(l.ultimaResposta.length > 140 ? l.ultimaResposta.slice(0, 140) + '…' : l.ultimaResposta)}</span>` : '<span class="sub">—</span>'}</td>
         <td style="min-width:170px"><select data-i="${esc(l.issue)}" data-c="Status Controle">${statusOpts}</select></td>
         <td style="min-width:200px"><input data-i="${esc(l.issue)}" data-c="Observações" value="${esc(l.obs)}"></td>
       </tr>`;
@@ -267,6 +270,8 @@
       const partes = [`✅ ${r.verificadas} issue(s) verificada(s)`, `${r.comSolicitacao} com nº de solicitação`];
       if (r.novasSolicitacoes) partes.push(`🆕 ${r.novasSolicitacoes} nova(s) solicitação(ões)`);
       if (r.analistasVinculados) partes.push(`👤 ${r.analistasVinculados} projeto(s) com analistas das agendas`);
+      if (r.novosTickets) partes.push(`🎫 ${r.novosTickets} ticket(s) novo(s) do suporte`);
+      if (r.codigosPsa) partes.push(`✅ ${r.codigosPsa} projeto(s) com código PSA preenchido`);
       if (r.canceladas) partes.push(`🚫 ${r.canceladas} marcada(s) como Cancelado (cancelada no Jira)`);
       if (r.importados) partes.push(`${r.importados} importada(s) dos rascunhos`);
       if (r.erros && r.erros.length) partes.push(`⚠️ não encontradas: ${r.erros.join(', ')}`);
