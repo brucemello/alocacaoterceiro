@@ -1,0 +1,5 @@
+# Credenciais e configuração local do clasp (geradas pelas Actions a partir dos Secrets)
+.clasprc.json
+.clasp.json
+node_modules/
+.DS_Store

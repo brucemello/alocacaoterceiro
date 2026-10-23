@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_blank">
+  <style>
+    :root { --azul:#1f4e78; --azul2:#0052cc; --borda:#dfe1e6; --cinza:#6b778c; }
+    * { box-sizing: border-box; }
+    html, body { margin:0; height:100%; font-family: Arial, sans-serif; font-size:13px; color:#172b4d; overflow:hidden; }
+    .topo { display:flex; align-items:flex-end; gap:4px; padding:0 12px; background:var(--azul); height:46px; }
+    .marca { color:#fff; font-weight:bold; font-size:15px; margin-right:18px; align-self:center; white-space:nowrap; line-height:1.15; }
+    .marca small { display:block; font-size:11px; font-weight:normal; color:#cfe0f3; margin-left:22px; }
+    .aba { background:transparent; color:#cfe0f3; border:none; padding:10px 16px; font-size:13px; font-weight:bold;
+           cursor:pointer; border-radius:6px 6px 0 0; white-space:nowrap; }
+    .aba:hover { color:#fff; background:rgba(255,255,255,.08); }
+    .aba.ativa { background:#fff; color:var(--azul); }
+    .aba .ponto { display:inline-block; width:7px; height:7px; border-radius:50%; background:#ffab00; margin-left:6px; vertical-align:middle; visibility:hidden; }
+    .aba.sujo .ponto { visibility:visible; }
+    .conteudo { position:absolute; top:46px; left:0; right:0; bottom:0; }
+    .painel { position:absolute; inset:0; display:none; }
+    .painel.ativo { display:block; }
+    iframe { border:0; width:100%; height:100%; }
+    .carregando { padding:40px; color:var(--cinza); text-align:center; }
+
+    /* ---------- Configurações ---------- */
+    #cfg { overflow:auto; padding:20px 24px; }
+    .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; max-width:1100px; }
+    .card { border:1px solid var(--borda); border-radius:6px; padding:14px 16px; }
+    .card h4 { margin:0 0 10px; color:var(--azul); font-size:14px; }
+    .card p { margin:6px 0; color:#42526e; }
+    .linha { display:flex; gap:8px; align-items:center; margin-top:8px; }
+    input[type=password], input[type=text] { flex:1; padding:7px; border:1px solid #c1c7d0; border-radius:4px; font-size:13px; }
+    button { padding:7px 13px; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px; }
+    .primario { background:var(--azul2); color:#fff; } .secundario { background:#ebecf0; color:#172b4d; }
+    .ok { color:#006644; } .erro { color:#bf2600; }
+    .tag { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold; }
+    .tag.on { background:#e3fcef; color:#006644; } .tag.off { background:#f4f5f7; color:#6b778c; }
+    .res { margin-top:8px; font-size:12px; min-height:16px; }
+  </style>
+</head>
+<body>
+  <div class="topo">
+    <div class="marca">🦇 Agente A.I.F.R.E.A.D<small>Alocação de Recurso Terceiro</small></div>
+    <button class="aba ativa" data-aba="controle">📊 Controle</button>
+    <button class="aba" data-aba="projeto">🏗️ Projeto Interno<span class="ponto"></span></button>
+    <button class="aba" data-aba="agenda">📅 Agenda<span class="ponto"></span></button>
+    <button class="aba" data-aba="cfg">⚙️ Configurações</button>
+  </div>
+
+  <div class="conteudo">
+    <div class="painel ativo" id="p-controle"><div class="carregando">Carregando…</div></div>
+    <div class="painel" id="p-projeto"><div class="carregando">Carregando…</div></div>
+    <div class="painel" id="p-agenda"><div class="carregando">Carregando…</div></div>
+
+    <div class="painel" id="p-cfg">
+      <div id="cfg">
+        <div class="cards">
+          <div class="card">
+            <h4>🔑 Conexão com o Jira</h4>
+            <p id="cfgToken">Verificando…</p>
+            <div class="linha"><input type="password" id="token" placeholder="Cole aqui um novo Personal Access Token (PAT)"><button class="secundario" onclick="salvarToken()">Salvar</button></div>
+            <div class="linha"><button class="primario" onclick="testar()">🧪 Testar conexão</button></div>
+            <div class="res" id="resToken"></div>
+          </div>
+          <div class="card">
+            <h4>⏰ Atualização automática do Controle</h4>
+            <p>Atualiza status do Jira, nº de solicitação e analistas a cada 1 hora, mesmo com a planilha fechada.</p>
+            <p>Situação: <span id="tagAuto" class="tag off">—</span></p>
+            <div class="linha"><button class="primario" onclick="auto(true)">Ativar</button><button class="secundario" onclick="auto(false)">Desativar</button></div>
+            <div class="res" id="resAuto"></div>
+          </div>
+          <div class="card">
+            <h4>🧹 Manutenção</h4>
+            <p>Se alguém mudar tipo, prioridade ou épico das templates no Jira (CIBKPRTH-7190 / 7191), limpe o cache para o painel reler.</p>
+            <div class="linha"><button class="secundario" onclick="limparCache()">Limpar cache das templates</button></div>
+            <div class="res" id="resCache"></div>
+          </div>
+          <div class="card">
+            <h4>ℹ️ Sobre</h4>
+            <p>Usuário: <b id="cfgUsuario">—</b></p>
+            <p>Jira: <span id="cfgJira">—</span></p>
+            <p>Os dados ficam nas abas <b>Controle_Solicitacoes</b>, <b>Rascunhos_PI</b>, <b>Rascunhos_Agenda</b> e <b>Logs</b> desta planilha.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const TELAS = { controle: 'TelaControle', projeto: 'TelaProjetoInterno', agenda: 'TelaAgenda' };
+  const frames = {};          // aba -> iframe
+  let abaAtual = 'controle';
+
+  // ---------- Ponte: as telas dentro do painel chamam o servidor por aqui ----------
+  const SHIM = `<script>(function(){
+    var seq=0,pend={};
+    window.addEventListener('message',function(ev){var m=ev.data;if(!m||m.__painel!=='resp')return;var p=pend[m.id];if(!p)return;delete pend[m.id];
+      if(m.ok){p.s&&p.s(m.res,p.u);}else{p.f&&p.f({message:m.err},p.u);}});
+    function runner(s,f,u){return new Proxy({},{get:function(_,n){
+      if(n==='withSuccessHandler')return function(cb){return runner(cb,f,u)};
+      if(n==='withFailureHandler')return function(cb){return runner(s,cb,u)};
+      if(n==='withUserObject')return function(o){return runner(s,f,o)};
+      return function(){var id=++seq;pend[id]={s:s,f:f,u:u};
+        parent.postMessage({__painel:'call',aba:'__ABA__',id:id,fn:n,args:Array.prototype.slice.call(arguments)},'*');};}});}
+    window.google={script:{run:runner(null,null,null),host:{
+      close:function(){parent.postMessage({__painel:'close',aba:'__ABA__'},'*');},setHeight:function(){},setWidth:function(){}}}};
+    window.irParaAbaPainel=function(aba){parent.postMessage({__painel:'tab',aba:'__ABA__',tab:aba},'*');};
+  })();<\/script>`;
+
+  window.addEventListener('message', ev => {
+    const m = ev.data || {};
+    const aba = m.aba;
+    const alvo = aba && frames[aba] && frames[aba].contentWindow;
+    if (!alvo || (ev.source && ev.source !== alvo)) return;   // só aceita mensagens das telas do painel
+    if (m.__painel === 'call') {
+      google.script.run
+        .withSuccessHandler(res => alvo.postMessage({ __painel: 'resp', id: m.id, ok: true, res: res }, '*'))
+        .withFailureHandler(e => alvo.postMessage({ __painel: 'resp', id: m.id, ok: false, err: (e && e.message) || String(e) }, '*'))
+        [m.fn].apply(null, m.args || []);
+      if (/^criarIssue/.test(m.fn)) marcarSujo(aba, false);
+    } else if (m.__painel === 'close') {
+      google.script.host.close();
+    } else if (m.__painel === 'tab') {
+      mostrar(m.tab);
+    }
+  });
+
+  function carregarTela(aba) {
+    if (frames[aba] || !TELAS[aba]) return;
+    const box = $('p-' + aba);
+    google.script.run.withSuccessHandler(html => {
+      html = html.replace(/<base[^>]*>/i, '<base target="_blank">');
+      const shim = SHIM.replace(/__ABA__/g, aba);
+      html = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, h => h + shim) : shim + html;
+      const f = document.createElement('iframe');
+      f.setAttribute('title', aba);
+      frames[aba] = f;
+      box.innerHTML = '';
+      box.appendChild(f);
+      f.srcdoc = html;
+      // Formulário com algo digitado ganha um ponto amarelo na aba
+      f.addEventListener('load', () => {
+        try {
+          f.contentWindow.document.addEventListener('input', () => marcarSujo(aba, true), true);
+        } catch (e) {}
+      });
+    }).withFailureHandler(e => {
+      box.innerHTML = `<div class="carregando" style="color:#bf2600">Não consegui carregar a tela: ${e.message}</div>`;
+    }).obterHtmlTelaPainel(TELAS[aba]);
+  }
+
+  function marcarSujo(aba, sujo) {
+    const b = document.querySelector(`.aba[data-aba="${aba}"]`);
+    if (b) b.classList.toggle('sujo', !!sujo);
+  }
+
+  function mostrar(aba) {
+    if (!$('p-' + aba)) return;
+    abaAtual = aba;
+    document.querySelectorAll('.aba').forEach(b => b.classList.toggle('ativa', b.dataset.aba === aba));
+    document.querySelectorAll('.painel').forEach(p => p.classList.toggle('ativo', p.id === 'p-' + aba));
+    if (aba === 'cfg') carregarConfig();
+    carregarTela(aba);
+    if (frames[aba]) frames[aba].contentWindow.postMessage({ __painel: 'shown' }, '*');
+  }
+
+  document.querySelectorAll('.aba').forEach(b => b.addEventListener('click', () => mostrar(b.dataset.aba)));
+  carregarTela('controle');
+
+  // ---------- Configurações ----------
+  function carregarConfig() {
+    google.script.run.withSuccessHandler(c => {
+      $('cfgToken').innerHTML = c.temToken ? '<span class="ok">✔ Token configurado.</span>' : '<span class="erro">⚠️ Nenhum token configurado.</span>';
+      $('tagAuto').className = 'tag ' + (c.autoAtivo ? 'on' : 'off');
+      $('tagAuto').textContent = c.autoAtivo ? 'Ativa' : 'Desativada';
+      $('cfgUsuario').textContent = c.usuario || '—';
+      $('cfgJira').textContent = c.jiraUrl;
+    }).statusConfigPainel();
+  }
+  function salvarToken() {
+    $('resToken').textContent = 'Salvando…';
+    google.script.run.withSuccessHandler(() => { $('token').value = ''; $('resToken').innerHTML = '<span class="ok">✔ Token salvo.</span>'; carregarConfig(); })
+      .withFailureHandler(e => $('resToken').innerHTML = `<span class="erro">${e.message}</span>`).salvarTokenPainel($('token').value);
+  }
+  function testar() {
+    $('resToken').textContent = 'Testando…';
+    google.script.run.withSuccessHandler(u => $('resToken').innerHTML = `<span class="ok">✅ Conectado como <b>${u.nome}</b> (${u.email || u.login})</span>`)
+      .withFailureHandler(e => $('resToken').innerHTML = `<span class="erro">❌ ${e.message}</span>`).testarConexaoPainel();
+  }
+  function auto(ativar) {
+    $('resAuto').textContent = ativar ? 'Ativando…' : 'Desativando…';
+    google.script.run.withSuccessHandler(on => { $('resAuto').innerHTML = `<span class="ok">✔ Atualização automática ${on ? 'ativada' : 'desativada'}.</span>`; carregarConfig(); })
+      .withFailureHandler(e => $('resAuto').innerHTML = `<span class="erro">${e.message}</span>`).definirAutoAtualizacaoPainel(ativar);
+  }
+  function limparCache() {
+    google.script.run.withSuccessHandler(() => $('resCache').innerHTML = '<span class="ok">✔ Cache limpo.</span>')
+      .withFailureHandler(e => $('resCache').innerHTML = `<span class="erro">${e.message}</span>`).limparCacheTemplatesPainel();
+  }
+</script>
+</body>
+</html>

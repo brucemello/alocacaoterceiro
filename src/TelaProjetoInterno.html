@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    :root { --azul:#4c9aff; --azul-esc:#0052cc; --verde:#00875a; --verm:#de350b; --cinza:#6b778c; --borda:#dfe1e6; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #172b4d; margin: 0; padding: 14px 16px 80px; }
+    h2 { margin: 0 0 4px; color: #1f4e78; font-size: 17px; }
+    h3 { margin: 22px 0 8px; font-size: 14px; color: #172b4d; border-bottom: 2px solid #1f4e78; padding-bottom: 4px; }
+    .sub { color: var(--cinza); font-size: 12px; margin-bottom: 10px; }
+    .legenda span { display:inline-block; padding:2px 8px; border-radius:3px; margin-right:6px; font-size:11px; font-weight:bold; }
+    .lg-az { background:#deebff; color:var(--azul-esc); } .lg-vd { background:#e3fcef; color:var(--verde); }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+    .grid3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 14px; }
+    .full { grid-column: 1 / -1; }
+    .campo label { display:block; font-weight:bold; margin-bottom:3px; font-size:12px; }
+    .campo.az label::before { content:'● '; color:var(--azul); }
+    .campo.vd label::before { content:'● '; color:var(--verde); }
+    .campo.fx label::before { content:'● '; color:var(--cinza); }
+    input, select, textarea { width:100%; padding:6px 7px; border:1px solid #c1c7d0; border-radius:4px; font-size:13px; font-family:inherit; }
+    .az input, .az textarea, .az select { border-left:4px solid var(--azul); }
+    .vd input, .vd textarea, .vd select { border-left:4px solid var(--verde); }
+    textarea { resize:vertical; }
+    .fixo { background:#f4f5f7; padding:7px; border-radius:4px; color:#42526e; }
+    .checks { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:4px 10px; border-left:4px solid var(--azul); padding:6px 8px; border-radius:4px; background:#f7faff; }
+    .checks label { font-weight:normal; display:flex; gap:6px; align-items:center; font-size:12px; }
+    .checks input, .radios input { width:auto; }
+    .radios { display:flex; gap:18px; border-left:4px solid var(--azul); padding:6px 8px; border-radius:4px; background:#f7faff; }
+    .radios label { font-weight:normal; display:flex; gap:5px; align-items:center; }
+    table { border-collapse:collapse; width:100%; font-size:12px; }
+    th, td { border:1px solid var(--borda); padding:3px 4px; text-align:center; }
+    th { background:#1f4e78; color:#fff; font-weight:bold; font-size:11px; }
+    td.mes { font-weight:bold; }
+    td input { padding:3px 4px; font-size:12px; text-align:right; border-left:3px solid var(--verde); }
+    td.calc { background:#f4f5f7; text-align:right; color:#42526e; }
+    tr.total td { font-weight:bold; background:#deebff; color:var(--azul-esc); text-align:right; }
+    .vh-linha { display:grid; grid-template-columns: 1fr 1fr 1fr 32px; gap:6px; margin-bottom:6px; }
+    .vh-total { text-align:right; font-weight:bold; color:var(--azul-esc); }
+    button { padding:8px 14px; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px; }
+    .primario { background:#0052cc; color:#fff; } .secundario { background:#ebecf0; color:#172b4d; }
+    .sucesso { background:#00875a; color:#fff; } .mini { padding:4px 8px; font-size:11px; }
+    .rem { background:#ffebe6; color:#bf2600; padding:4px; }
+    button:disabled { opacity:.5; cursor:default; }
+    .barra { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--borda); padding:10px 16px; display:flex; gap:8px; justify-content:flex-end; align-items:center; }
+    .barra #msg { flex:1; margin:0; }
+    #msg { padding:7px 9px; border-radius:4px; display:none; font-size:12px; }
+    .ok { background:#e3fcef; color:#006644; } .erro { background:#ffebe6; color:#bf2600; } .info { background:#deebff; color:#0747a6; }
+    pre { background:#f4f5f7; padding:8px; border-radius:4px; max-height:300px; overflow:auto; font-size:11px; white-space:pre-wrap; }
+    .dica { color:var(--cinza); font-size:11px; margin-top:2px; }
+    .titulo-prev { background:#f4f5f7; padding:8px; border-radius:4px; font-weight:bold; }
+    .rascunhos { display:flex; gap:8px; align-items:center; margin-top:10px; padding:8px 10px; background:#f4f5f7; border-radius:4px; }
+    .rascunhos select { width:auto; flex:1; max-width:560px; }
+    .salvar { background:#ffab00; color:#172b4d; }
+    .faltando { outline:2px solid #de350b; outline-offset:3px; border-radius:4px; background:#fff4f2; }
+    .faltando > label { color:#bf2600; }
+  </style>
+</head>
+<body>
+  <h2>🏗️ Solicitação de Criação de Projeto Interno</h2>
+  <div class="sub">Preencha só os campos azuis e verdes. Os campos fixos (vermelhos e laranjas) e o restante do layout do template são montados automaticamente na descrição da issue.</div>
+  <div class="legenda"><span class="lg-az">AZUL · obrigatório</span><span class="lg-vd">VERDE · opcional (em branco se não houver)</span></div>
+
+  <div class="rascunhos">
+    <b>📂 Rascunhos:</b>
+    <select id="selRascunho"><option value="">— carregando… —</option></select>
+    <button class="secundario mini" onclick="abrirRascunho()">Abrir</button>
+    <button class="secundario mini" onclick="novoFormulario()">Novo</button>
+    <span id="statusRascunho" class="dica"></span>
+  </div>
+
+  <h3>Issue no Jira</h3>
+  <div class="grid3">
+    <div class="campo az">
+      <label>Projeto Jira</label>
+      <input id="projetoJira" list="listaProjetos" style="text-transform:uppercase">
+      <datalist id="listaProjetos"></datalist>
+      <div class="dica"><a href="#" onclick="carregarProjetos();return false;">carregar lista de projetos</a></div>
+    </div>
+    <div class="campo az">
+      <label>Tipo de issue</label>
+      <select id="tipoIssue"><option value="">— informe o projeto —</option></select>
+      <div class="dica" id="dicaTipo"></div>
+    </div>
+    <div class="campo az">
+      <label>Épico (Epic Link)</label>
+      <input id="epico" style="text-transform:uppercase">
+      <div class="dica">Para testes em outro projeto, deixe em branco para não vincular ao épico real.</div>
+    </div>
+  </div>
+  <div id="boxCamposProjeto" class="grid3" style="margin-top:10px"></div>
+  <div class="fixo" id="fixosIssue" style="margin-top:8px"></div>
+
+  <h3>TABELA 01 - Definições do Projeto</h3>
+  <div class="grid">
+    <div class="campo az full">
+      <label>Nome do Projeto <span style="font-weight:normal;color:#6b778c">(também vai para o título)</span></label>
+      <input id="nomeProjeto" maxlength="150">
+    </div>
+    <div class="campo az"><label>Squad Responsável pelo Projeto</label><input id="squad"></div>
+    <div class="campo az"><label>Gestor Responsável pelo Projeto (Tribe)</label><input id="gestor"></div>
+    <div class="campo az full"><label>Team Lead(ers) que irá(ão) solicitar alocações no Projeto</label><input id="teamLeads"></div>
+    <div class="campo fx full"><label>Analista(s) previsto(s) <span style="font-weight:normal;color:#6b778c">(opcional · só para o Controle, não vai para o Jira)</span></label>
+      <input id="analistas" placeholder="ex.: Tiago Alberto de Melo, Maria Souza">
+      <div class="dica">Se ficar em branco, o Controle preenche sozinho com os analistas das Agendas abertas para este projeto.</div></div>
+
+    <div class="campo az full">
+      <label>Tipo de Projeto</label>
+      <div class="checks" id="tiposProjeto"></div>
+    </div>
+
+    <div class="campo az"><label>Data Início</label><input id="dataInicio" type="date"></div>
+    <div class="campo az"><label>Data Fim</label><input id="dataFim" type="date"></div>
+
+    <div class="campo az full">
+      <label>Custo não considerado no FORECAST</label>
+      <div class="radios" id="boxForecast">
+        <label><input type="radio" name="custoForecast" value="Sim"> Sim</label>
+        <label><input type="radio" name="custoForecast" value="Não"> Não</label>
+      </div>
+    </div>
+
+    <div class="campo vd">
+      <label>Código do contrato faturável</label>
+      <input id="contratoFaturavel">
+      <div class="dica">Só em caso de Perda, Erro de Produto e Investimento.</div>
+    </div>
+    <div class="campo vd">
+      <label>Nr Oportunidade (pré-venda)</label>
+      <input id="oportunidade">
+      <div class="dica">Só no caso de pré-venda / arquitetura.</div>
+    </div>
+
+    <div class="campo az"><label>Centro de Custo</label><input id="centroCusto"></div>
+    <div class="campo az"><label>Classe de Valor</label><input id="classeValor"></div>
+    <div class="campo az"><label>Item Contábil</label><input id="itemContabil"></div>
+    <div></div>
+
+    <div class="campo az full"><label>Objetivo do Serviço</label><textarea id="objetivo" rows="2"></textarea></div>
+    <div class="campo az full"><label>Resultado Final Esperado</label><textarea id="resultadoEsperado" rows="2"></textarea></div>
+    <div class="campo az full"><label>Cenário Atual do Projeto</label><textarea id="cenarioAtual" rows="2"></textarea></div>
+
+    <div class="full auto-box">
+      <label style="font-weight:bold;display:flex;gap:6px;align-items:center">
+        <input type="checkbox" id="autoCalc" checked style="width:auto" onchange="aplicarModoAuto()">
+        Calcular automaticamente pela Tabela 02 (horas, recursos e valores/hora)
+      </label>
+      <div class="dica" id="dicaAuto">Preencha a Tabela 02 abaixo; os 3 campos a seguir são preenchidos sozinhos. Desmarque para digitar manualmente.</div>
+    </div>
+
+    <div class="campo az">
+      <label>Quantidade de horas total do Projeto</label>
+      <input id="horasTotal" inputmode="decimal">
+      <div class="dica">= soma da coluna D (Recursos × Dias × Horas/dia)</div>
+    </div>
+    <div class="campo az">
+      <label>Quantidade total de Recursos a serem alocados</label>
+      <input id="recursosTotal" inputmode="numeric">
+      <div class="dica">= maior Qtde. Recursos (A) entre os meses</div>
+    </div>
+
+    <div class="campo az full">
+      <label>Valor(es) hora considerado(s) para alocação (por Recurso)</label>
+      <div class="vh-linha" style="font-size:11px;color:#6b778c;font-weight:bold">
+        <div>Qtde. Recursos</div><div>R$ Vlr/hora</div><div>Horas de alocação</div><div></div>
+      </div>
+      <div id="valoresHora"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <button class="secundario mini" id="btnAddVh" onclick="addValorHora()">+ adicionar linha</button>
+        <div class="vh-total">Total R$ <span id="vhTotal">0,00</span></div>
+      </div>
+      <div class="dica">Total = R$ Vlr/hora × Horas de alocação. No modo automático, há uma linha por valor/hora usado na Tabela 02.</div>
+    </div>
+  </div>
+
+  <h3>TABELA 02 - Investimento do Projeto</h3>
+  <div class="dica" style="margin-bottom:6px">Preencha A, B, C, E e G nos meses com alocação. D, F, H e os totais são calculados automaticamente.</div>
+  <table>
+    <thead>
+      <tr><th>Mês</th><th>Qtde. Recursos (A)</th><th>Qtde. Dias (B)</th><th>Horas/Dia (C)</th><th>D = A×B×C</th>
+          <th>Vlr/Hora R$ (E)</th><th>F = D×E</th><th>Despesas Extras R$ (G)</th><th>H = F+G</th></tr>
+    </thead>
+    <tbody id="tabMeses"></tbody>
+  </table>
+
+  <h3>TABELA 03 - Benefícios e retornos financeiros esperados</h3>
+  <label style="font-weight:normal;display:flex;gap:6px;align-items:center;margin-bottom:8px">
+    <input type="checkbox" id="semRetorno" style="width:auto" onchange="toggleTab3()"> Projeto sem comprovação de retorno financeiro (remove a Tabela 03 da issue)
+  </label>
+  <div class="grid" id="boxTab3">
+    <div class="campo vd full"><label>Detalhamento</label><textarea id="benDetalhamento" rows="2"></textarea></div>
+    <div class="campo vd"><label>Valor do Benefício (R$)</label><input id="benValor" inputmode="decimal"></div>
+    <div></div>
+    <div class="campo vd"><label>Data Início</label><input id="benDataInicio" type="date"></div>
+    <div class="campo vd"><label>Data Fim</label><input id="benDataFim" type="date"></div>
+  </div>
+
+  <div id="boxPrevia" style="display:none">
+    <h3>Prévia</h3>
+    <label style="font-weight:bold">Título</label>
+    <div class="titulo-prev" id="previaTitulo"></div>
+    <label style="font-weight:bold;display:block;margin-top:8px">Descrição (wiki markup do Jira)</label>
+    <pre id="previaDescricao"></pre>
+  </div>
+
+  <div class="barra">
+    <div id="msg"></div>
+    <button class="secundario" onclick="fechar()">Fechar</button>
+    <button class="salvar" id="btnSalvar" onclick="salvarRascunho()">💾 Salvar rascunho</button>
+    <button class="primario" id="btnPrevia" onclick="gerarPrevia()">Revisar</button>
+    <button class="sucesso" id="btnCriar" onclick="criar()" disabled>Confirmar e criar</button>
+  </div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  let CFG = null;
+
+  // ---------- números pt-BR ----------
+  function num(v) {
+    v = String(v || '').trim(); if (!v) return 0;
+    const n = v.indexOf(',') !== -1 ? parseFloat(v.replace(/\./g, '').replace(',', '.')) : parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  }
+  function fmt(n, casas) {
+    return Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+  }
+
+  function mostrar(texto, classe) { const m = $('msg'); m.className = classe; m.innerHTML = texto; m.style.display = 'block'; }
+  function invalidar() { $('btnCriar').disabled = true; }
+
+  // ---------- inicialização ----------
+  google.script.run.withSuccessHandler(cfg => {
+    CFG = cfg;
+    $('projetoJira').value = cfg.projetoPadrao;
+    $('epico').value = cfg.epicoPadrao;
+    $('fixosIssue').innerHTML = `Fixos: Prioridade <b>${cfg.prioridade}</b> · Rótulo <b>${cfg.labels}</b>`;
+    $('projetoJira').addEventListener('change', () => carregarTipos());
+    $('tipoIssue').addEventListener('change', () => carregarCamposProjeto());
+    carregarTipos();
+    $('tiposProjeto').innerHTML = cfg.tiposProjeto.map((t, i) =>
+      `<label><input type="checkbox" value="${t}" id="tp${i}"> ${t}</label>`).join('');
+    $('tabMeses').innerHTML = cfg.meses.map((m, i) => `
+      <tr>
+        <td class="mes">${m}</td>
+        <td><input data-m="${i}" data-c="a" inputmode="numeric"></td>
+        <td><input data-m="${i}" data-c="b" inputmode="numeric"></td>
+        <td><input data-m="${i}" data-c="c" inputmode="numeric" value="8"></td>
+        <td class="calc" id="d${i}">0</td>
+        <td><input data-m="${i}" data-c="e" inputmode="decimal"></td>
+        <td class="calc" id="f${i}">0,00</td>
+        <td><input data-m="${i}" data-c="g" inputmode="decimal"></td>
+        <td class="calc" id="h${i}"><b>0,00</b></td>
+      </tr>`).join('') + `
+      <tr class="total"><td>TOTAIS</td><td></td><td></td><td></td><td id="tD">0</td><td></td>
+        <td id="tF">0,00</td><td id="tG">0,00</td><td id="tH">0,00</td></tr>`;
+    addValorHora();
+    ligarEventos();
+    aplicarModoAuto();
+    carregarListaRascunhos();
+  }).withFailureHandler(e => mostrar('Erro ao carregar: ' + e.message, 'erro')).obterConfigProjetoInterno();
+
+  function ligarEventos() {
+    const ehDoForm = e => !e.target.closest('.rascunhos');
+    document.body.addEventListener('input', e => {
+      if (!ehDoForm(e)) return;
+      invalidar(); marcarAlterado();
+      if (e.target.closest('#tabMeses, #valoresHora') || e.target.id === 'horasTotal') recalcular();
+    });
+    document.body.addEventListener('change', e => { if (ehDoForm(e)) { invalidar(); marcarAlterado(); } });
+    ['input', 'change'].forEach(ev => document.body.addEventListener(ev, e => {
+      const f = e.target.closest('.faltando'); if (f) f.classList.remove('faltando');
+    }));
+    // Salvamento automático a cada 2 minutos, se houver alterações
+    setInterval(() => { if (alterado && $('nomeProjeto').value.trim()) salvarRascunho(true); }, 120000);
+    window.addEventListener('beforeunload', e => { if (alterado) { e.preventDefault(); e.returnValue = ''; } });
+  }
+
+  // ---------- Tipos de issue do projeto ----------
+  var tipoDesejado = '';   // usado ao reabrir rascunho
+  function carregarTipos() {
+    const p = $('projetoJira').value.trim().toUpperCase();
+    $('tipoIssue').innerHTML = '<option value="">— carregando… —</option>';
+    $('dicaTipo').textContent = '';
+    if (!p) { $('tipoIssue').innerHTML = '<option value="">— informe o projeto —</option>'; return; }
+    google.script.run.withSuccessHandler(r => {
+      if (!r.tipos.length) {
+        $('tipoIssue').innerHTML = '<option value="">— nenhum tipo encontrado —</option>';
+        return;
+      }
+      $('tipoIssue').innerHTML = '<option value="">— selecione —</option>' +
+        r.tipos.map(t => `<option value="${t.id}">${t.nome}${t.id === r.padrao ? ' (padrão)' : ''}</option>`).join('');
+      const escolher = (tipoDesejado && r.tipos.some(t => t.id === tipoDesejado)) ? tipoDesejado : r.padrao;
+      $('tipoIssue').value = escolher || '';
+      tipoDesejado = '';
+      carregarCamposProjeto();
+      $('dicaTipo').textContent = r.padrao ? '' : `${p} não tem "Tarefa": escolha um tipo para o teste.`;
+    }).withFailureHandler(e => {
+      $('tipoIssue').innerHTML = '<option value="">— erro ao carregar —</option>';
+      $('dicaTipo').textContent = e.message;
+    }).listarTiposProjetoPI(p);
+  }
+
+  // ---------- Campos obrigatórios próprios do projeto/tipo ----------
+  var camposDesejados = {};   // valores restaurados de rascunho
+  var defsCamposProjeto = [];
+  function escHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  function carregarCamposProjeto() {
+    const p = $('projetoJira').value.trim().toUpperCase(), t = $('tipoIssue').value;
+    const box = $('boxCamposProjeto');
+    const guardados = Object.assign({}, lerCamposProjeto(), camposDesejados);
+    box.innerHTML = ''; defsCamposProjeto = [];
+    if (!p || !t) return;
+    google.script.run.withSuccessHandler(defs => {
+      defsCamposProjeto = defs;
+      box.innerHTML = defs.map(d => {
+        const val = guardados[d.id];
+        let html;
+        if (d.opcoes.length) {
+          const sel = v => (Array.isArray(val) ? val.indexOf(v) !== -1 : String(val || '') === v) ? ' selected' : '';
+          html = `<select data-campo="${d.id}"${d.multiplo ? ' multiple size="4"' : ''}>` +
+            (d.multiplo ? '' : '<option value="">— selecione —</option>') +
+            d.opcoes.map(o => `<option value="${escHtml(o.id)}"${sel(o.id)}>${escHtml(o.nome)}</option>`).join('') +
+            '</select>' + (d.multiplo ? '<div class="dica">Ctrl+clique para escolher mais de um.</div>' : '');
+        } else {
+          html = `<input data-campo="${d.id}" value="${escHtml(Array.isArray(val) ? val.join(', ') : (val || ''))}">` +
+            `<div class="dica">${d.tipo === 'user' ? 'login do Jira' : d.multiplo ? 'separe por vírgula' : ''}</div>`;
+        }
+        return `<div class="campo az"><label>${escHtml(d.nome)} <span style="font-weight:normal;color:#6b778c">(obrigatório no ${p})</span></label>${html}</div>`;
+      }).join('');
+      camposDesejados = {};
+    }).withFailureHandler(e => {
+      box.innerHTML = `<div class="dica full">Não consegui ler os campos obrigatórios do projeto: ${escHtml(e.message)}</div>`;
+    }).listarCamposObrigatoriosPI(p, t);
+  }
+
+  function lerCamposProjeto() {
+    const r = {};
+    document.querySelectorAll('#boxCamposProjeto [data-campo]').forEach(el => {
+      r[el.dataset.campo] = el.multiple ? Array.from(el.selectedOptions).map(o => o.value) : el.value;
+    });
+    return r;
+  }
+
+  // ---------- Rascunhos ----------
+  var rascunhoId = '';
+  var alterado = false;
+
+  function marcarAlterado() {
+    alterado = true;
+    $('statusRascunho').textContent = rascunhoId ? '● alterações não salvas' : '● ainda não salvo';
+  }
+
+  function carregarListaRascunhos(selecionar) {
+    google.script.run.withSuccessHandler(lista => {
+      const icone = s => s === 'Criada' ? '✅' : '📝';
+      $('selRascunho').innerHTML = '<option value="">— selecione um rascunho —</option>' + lista.map(r =>
+        `<option value="${r.id}">${icone(r.status)} ${r.nome} · ${r.quandoTxt} · ${r.usuario}${r.issue ? ' · ' + r.issue : ''}</option>`).join('');
+      if (selecionar) $('selRascunho').value = selecionar;
+      if (!lista.length) $('selRascunho').innerHTML = '<option value="">— nenhum rascunho salvo —</option>';
+    }).withFailureHandler(() => {
+      $('selRascunho').innerHTML = '<option value="">— nenhum rascunho salvo —</option>';
+    }).listarRascunhosPI();
+  }
+
+  function salvarRascunho(silencioso) {
+    if (!$('nomeProjeto').value.trim()) {
+      if (!silencioso) mostrar('Informe ao menos o <b>Nome do Projeto</b> para salvar o rascunho.', 'erro');
+      return;
+    }
+    $('btnSalvar').disabled = true;
+    google.script.run.withSuccessHandler(r => {
+      rascunhoId = r.id; alterado = false;
+      $('btnSalvar').disabled = false;
+      $('statusRascunho').textContent = `✔ salvo às ${r.quando}` + (silencioso ? ' (automático)' : '');
+      if (!silencioso) mostrar('💾 Rascunho salvo na aba <b>Rascunhos_PI</b>.', 'ok');
+      carregarListaRascunhos(r.id);
+    }).withFailureHandler(e => {
+      $('btnSalvar').disabled = false;
+      if (!silencioso) mostrar('Erro ao salvar: ' + e.message, 'erro');
+    }).salvarRascunhoPI(coletar(), rascunhoId);
+  }
+
+  function abrirRascunho() {
+    const id = $('selRascunho').value;
+    if (!id) return mostrar('Selecione um rascunho na lista.', 'erro');
+    if (alterado && !confirm('Há alterações não salvas no formulário atual. Abrir o rascunho mesmo assim?')) return;
+    mostrar('Abrindo rascunho…', 'info');
+    google.script.run.withSuccessHandler(d => {
+      preencher(d);
+      rascunhoId = id; alterado = false;
+      $('statusRascunho').textContent = '✔ rascunho aberto';
+      $('boxPrevia').style.display = 'none';
+      mostrar('Rascunho carregado. Revise e clique em <b>Revisar</b>.', 'ok');
+    }).withFailureHandler(e => mostrar('Erro: ' + e.message, 'erro')).carregarRascunhoPI(id);
+  }
+
+  function novoFormulario() {
+    if (alterado && !confirm('Há alterações não salvas. Começar um formulário novo mesmo assim?')) return;
+    preencher({ projetoJira: CFG.projetoPadrao, epico: CFG.epicoPadrao, autoCalc: true });
+    rascunhoId = ''; alterado = false;
+    $('selRascunho').value = '';
+    $('statusRascunho').textContent = '';
+    $('boxPrevia').style.display = 'none';
+    $('msg').style.display = 'none';
+  }
+
+  function preencher(d) {
+    d = d || {};
+    ['projetoJira', 'epico', 'nomeProjeto', 'squad', 'gestor', 'teamLeads', 'analistas', 'dataInicio', 'dataFim',
+     'contratoFaturavel', 'oportunidade', 'centroCusto', 'classeValor', 'itemContabil', 'objetivo',
+     'resultadoEsperado', 'cenarioAtual', 'horasTotal', 'recursosTotal']
+      .forEach(id => { $(id).value = d[id] || ''; });
+    tipoDesejado = d.tipoIssueId || '';
+    camposDesejados = d.camposProjeto || {};
+    $('boxCamposProjeto').innerHTML = '';
+    carregarTipos();
+
+    const tipos = d.tiposProjeto || [];
+    document.querySelectorAll('#tiposProjeto input').forEach(c => c.checked = tipos.indexOf(c.value) !== -1);
+    document.querySelectorAll('input[name="custoForecast"]').forEach(r => r.checked = r.value === d.custoForecast);
+
+    (d.meses || []).forEach((m, i) => ['a', 'b', 'c', 'e', 'g'].forEach(c => {
+      const el = document.querySelector(`[data-m="${i}"][data-c="${c}"]`);
+      if (el) el.value = m[c] || '';
+    }));
+    if (!(d.meses || []).length) {
+      document.querySelectorAll('#tabMeses input').forEach(el => el.value = el.dataset.c === 'c' ? '8' : '');
+    }
+
+    $('semRetorno').checked = !!d.semRetorno; toggleTab3();
+    const b = d.beneficio || {};
+    $('benDetalhamento').value = b.detalhamento || ''; $('benValor').value = b.valor || '';
+    $('benDataInicio').value = b.dataInicio || ''; $('benDataFim').value = b.dataFim || '';
+
+    $('autoCalc').checked = d.autoCalc !== false;
+    $('valoresHora').innerHTML = '';
+    const linhas = d.valoresHora && d.valoresHora.length ? d.valoresHora : [{}];
+    linhas.forEach(l => {
+      addValorHora();
+      const [r, v, h] = $('valoresHora').lastElementChild.querySelectorAll('input');
+      r.value = l.recursos || ''; v.value = l.valorHora || ''; h.value = l.horas || '';
+    });
+    aplicarModoAuto();
+  }
+
+  function fechar() {
+    if (alterado && !confirm('Há alterações não salvas. Fechar sem salvar o rascunho?')) return;
+    google.script.host.close();
+  }
+
+  // ---------- Tabela 02 ----------
+  function lerMeses() {
+    return CFG.meses.map((m, i) => {
+      const o = { mes: m };
+      ['a', 'b', 'c', 'e', 'g'].forEach(c => o[c] = document.querySelector(`[data-m="${i}"][data-c="${c}"]`).value);
+      return o;
+    });
+  }
+
+  function recalcular() {
+    let tD = 0, tF = 0, tG = 0, tH = 0;
+    lerMeses().forEach((m, i) => {
+      const D = num(m.a) * num(m.b) * num(m.c), F = D * num(m.e), G = num(m.g), H = F + G;
+      $('d' + i).textContent = fmt(D, 0); $('f' + i).textContent = fmt(F, 2);
+      $('h' + i).innerHTML = '<b>' + fmt(H, 2) + '</b>';
+      tD += D; tF += F; tG += G; tH += H;
+    });
+    $('tD').textContent = fmt(tD, 0); $('tF').textContent = fmt(tF, 2);
+    $('tG').textContent = fmt(tG, 2); $('tH').textContent = fmt(tH, 2);
+
+    // ----- modo automático: deriva da Tabela 02 -----
+    if (modoAuto()) {
+      const porValor = {};          // agrupa os meses por valor/hora (E)
+      let maxRec = 0;
+      lerMeses().forEach(m => {
+        const a = num(m.a), e = num(m.e), D = a * num(m.b) * num(m.c);
+        maxRec = Math.max(maxRec, a);
+        if (D > 0 && e > 0) {
+          const k = e.toFixed(2);
+          porValor[k] = porValor[k] || { recursos: 0, valorHora: e, horas: 0 };
+          porValor[k].recursos = Math.max(porValor[k].recursos, a);
+          porValor[k].horas += D;
+        }
+      });
+      $('horasTotal').value = tD ? fmt(tD, 0).replace(/\./g, '') : '';
+      $('recursosTotal').value = maxRec || '';
+      const linhas = Object.values(porValor);
+      $('valoresHora').innerHTML = '';
+      (linhas.length ? linhas : [{}]).forEach(l => addValorHora(l, true));
+    }
+
+    let tv = 0;
+    lerValoresHora().forEach(l => { tv += num(l.valorHora) * num(l.horas); });
+    $('vhTotal').textContent = fmt(tv, 2);
+    return tD;
+  }
+
+  function modoAuto() { return $('autoCalc').checked; }
+
+  function aplicarModoAuto() {
+    const auto = modoAuto();
+    ['horasTotal', 'recursosTotal'].forEach(id => { $(id).readOnly = auto; $(id).style.background = auto ? '#f4f5f7' : ''; });
+    $('btnAddVh').style.display = auto ? 'none' : '';
+    $('dicaAuto').textContent = auto
+      ? 'Preencha a Tabela 02 abaixo; os 3 campos a seguir são preenchidos sozinhos. Desmarque para digitar manualmente.'
+      : 'Modo manual: digite os valores. Se "Horas de alocação" ficar em branco numa linha única, usa a Quantidade de horas total.';
+    if (!auto) {
+      document.querySelectorAll('#valoresHora input').forEach(i => { i.readOnly = false; i.style.background = ''; });
+      document.querySelectorAll('#valoresHora .rem').forEach(b => b.style.display = '');
+    }
+    recalcular(); invalidar();
+  }
+
+  // ---------- Valores hora ----------
+  function addValorHora(dados, somenteLeitura) {
+    dados = dados || {};
+    const div = document.createElement('div');
+    div.className = 'vh-linha az';
+    div.innerHTML = `<input placeholder="ex.: 3" inputmode="numeric"><input placeholder="ex.: 120,00" inputmode="decimal">
+      <input placeholder="ex.: 480" inputmode="numeric"><button class="rem" title="remover" onclick="this.parentNode.remove();recalcular();invalidar()">✕</button>`;
+    const [r, v, h] = div.querySelectorAll('input');
+    if (dados.recursos) r.value = dados.recursos;
+    if (dados.valorHora) v.value = fmt(dados.valorHora, 2);
+    if (dados.horas) h.value = fmt(dados.horas, 0).replace(/\./g, '');
+    div.querySelectorAll('input').forEach(i => {
+      i.style.borderLeft = '4px solid var(--azul)';
+      if (somenteLeitura) { i.readOnly = true; i.style.background = '#f4f5f7'; }
+    });
+    if (somenteLeitura) div.querySelector('.rem').style.display = 'none';
+    $('valoresHora').appendChild(div);
+  }
+
+  function lerValoresHora() {
+    const linhas = Array.from(document.querySelectorAll('#valoresHora .vh-linha')).map(l => {
+      const [r, v, h] = l.querySelectorAll('input');
+      return { recursos: r.value, valorHora: v.value, horas: h.value };
+    });
+    // Manual: linha única sem horas → usa a Quantidade de horas total do Projeto
+    if (linhas.length === 1 && !num(linhas[0].horas) && num($('horasTotal').value)) {
+      linhas[0].horas = $('horasTotal').value;
+    }
+    return linhas;
+  }
+
+  function toggleTab3() { $('boxTab3').style.opacity = $('semRetorno').checked ? .4 : 1; }
+
+  function carregarProjetos() {
+    mostrar('Carregando projetos do Jira…', 'info');
+    google.script.run.withSuccessHandler(lista => {
+      $('listaProjetos').innerHTML = lista.map(p => `<option value="${p.key}">${p.nome}</option>`).join('');
+      mostrar(`${lista.length} projetos carregados. Comece a digitar no campo "Projeto Jira".`, 'ok');
+    }).withFailureHandler(e => mostrar('Erro: ' + e.message, 'erro')).listarProjetosJira();
+  }
+
+  // ---------- coleta / prévia / criação ----------
+  function coletar() {
+    const v = id => $(id).value;
+    const custo = document.querySelector('input[name="custoForecast"]:checked');
+    return {
+      rascunhoId: rascunhoId, autoCalc: $('autoCalc').checked,
+      projetoJira: v('projetoJira'), epico: v('epico'), tipoIssueId: v('tipoIssue'),
+      camposProjeto: lerCamposProjeto(),
+      nomeProjeto: v('nomeProjeto'), squad: v('squad'), gestor: v('gestor'), teamLeads: v('teamLeads'),
+      analistas: v('analistas'),
+      tiposProjeto: Array.from(document.querySelectorAll('#tiposProjeto input:checked')).map(c => c.value),
+      dataInicio: v('dataInicio'), dataFim: v('dataFim'),
+      custoForecast: custo ? custo.value : '',
+      contratoFaturavel: v('contratoFaturavel'), oportunidade: v('oportunidade'),
+      centroCusto: v('centroCusto'), classeValor: v('classeValor'), itemContabil: v('itemContabil'),
+      objetivo: v('objetivo'), resultadoEsperado: v('resultadoEsperado'), cenarioAtual: v('cenarioAtual'),
+      horasTotal: v('horasTotal'), recursosTotal: v('recursosTotal'),
+      valoresHora: lerValoresHora(),
+      meses: lerMeses(),
+      semRetorno: $('semRetorno').checked,
+      beneficio: { detalhamento: v('benDetalhamento'), valor: v('benValor'),
+                   dataInicio: v('benDataInicio'), dataFim: v('benDataFim') }
+    };
+  }
+
+  function gerarPrevia() {
+    mostrar('Montando prévia…', 'info');
+    google.script.run.withSuccessHandler(p => {
+      $('previaTitulo').textContent = p.titulo;
+      $('previaDescricao').textContent = p.descricao;
+      $('boxPrevia').style.display = 'block';
+      $('btnCriar').disabled = false;
+      $('boxPrevia').scrollIntoView({ behavior: 'smooth' });
+      mostrar('Confira a prévia e clique em <b>Confirmar e criar</b>. (prévia salva como rascunho)', 'info');
+      salvarRascunho(true);
+    }).withFailureHandler(e => { mostrar('❌ ' + e.message, 'erro'); destacarFaltantes(e.message); })
+      .gerarPreviaProjetoInterno(coletar());
+  }
+
+  // Destaca em vermelho e rola até os campos citados na mensagem de validação
+  const MAPA_CAMPOS = {
+    'Squad Responsável': 'squad', 'Gestor Responsável': 'gestor', 'Team Lead': 'teamLeads',
+    'Nome do Projeto': 'nomeProjeto', 'Data Início': 'dataInicio', 'Data Fim': 'dataFim',
+    'Centro de Custo': 'centroCusto', 'Classe de Valor': 'classeValor', 'Item Contábil': 'itemContabil',
+    'Objetivo do Serviço': 'objetivo', 'Resultado Final Esperado': 'resultadoEsperado',
+    'Cenário Atual': 'cenarioAtual', 'Quantidade de horas total': 'horasTotal',
+    'Quantidade total de Recursos': 'recursosTotal', 'Tipo de Projeto': 'tiposProjeto',
+    'Custo não considerado no FORECAST': 'boxForecast', 'Valor(es) hora': 'valoresHora',
+    'Tabela 02': 'tabMeses'
+  };
+  function destacarFaltantes(msg) {
+    document.querySelectorAll('.faltando').forEach(el => el.classList.remove('faltando'));
+    let primeiro = null;
+    Object.keys(MAPA_CAMPOS).forEach(rotulo => {
+      if (msg.indexOf(rotulo) === -1) return;
+      const el = $(MAPA_CAMPOS[rotulo]);
+      if (!el) return;
+      const alvo = el.closest('.campo') || el;
+      alvo.classList.add('faltando');
+      if (!primeiro) primeiro = alvo;
+    });
+    if (primeiro) primeiro.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function faltandoCamposProjeto() {
+    const vals = lerCamposProjeto();
+    return defsCamposProjeto.filter(d => {
+      const v = vals[d.id];
+      return Array.isArray(v) ? !v.length : !String(v || '').trim();
+    });
+  }
+
+  function criar() {
+    const falta = faltandoCamposProjeto();
+    if (falta.length) {
+      mostrar('❌ Preencha os campos obrigatórios do projeto: ' + falta.map(d => d.nome).join(', '), 'erro');
+      falta.forEach(d => {
+        const el = document.querySelector(`#boxCamposProjeto [data-campo="${d.id}"]`);
+        if (el) el.closest('.campo').classList.add('faltando');
+      });
+      $('boxCamposProjeto').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    $('btnCriar').disabled = true; $('btnPrevia').disabled = true;
+    mostrar('Criando issue no Jira…', 'info');
+    google.script.run.withSuccessHandler(r => {
+      const avisoEpico = String(r.epico || '').indexOf('⚠️') !== -1;
+      mostrar(`✅ Issue criada: <a href="${r.url}" target="_blank">${r.key}</a><br>${r.epico || ''}`,
+        avisoEpico ? 'info' : 'ok');
+      $('btnPrevia').disabled = false;
+      alterado = false;
+      if (r.rascunhoId) rascunhoId = r.rascunhoId;
+      $('statusRascunho').textContent = `✅ criada como ${r.key}`;
+      carregarListaRascunhos(rascunhoId);
+    }).withFailureHandler(e => {
+      mostrar('❌ ' + e.message, 'erro'); $('btnPrevia').disabled = false;
+    }).criarIssueProjetoInterno(coletar());
+  }
+</script>
+</body>
+</html>

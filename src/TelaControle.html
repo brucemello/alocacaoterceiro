@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_blank">
+  <style>
+    :root { --azul:#1f4e78; --azul2:#0052cc; --verde:#00875a; --borda:#dfe1e6; --cinza:#6b778c; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 12px; color:#172b4d; margin:0; padding:14px 16px; }
+    .acoes { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+    .acoes .esp { flex:1; }
+    button { padding:7px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px; white-space:nowrap; }
+    .primario { background:var(--azul2); color:#fff; } .secundario { background:#ebecf0; color:#172b4d; }
+    .novo { background:#00875a; color:#fff; }
+    button:disabled { opacity:.5; cursor:default; }
+    .kpis { display:grid; grid-template-columns: repeat(8, minmax(105px, 1fr)); gap:10px; margin-bottom:12px; }
+    .kpi { border:1px solid var(--borda); border-radius:6px; padding:9px 11px; cursor:pointer; }
+    .kpi:hover { border-color:#4c9aff; }
+    .kpi.sel { border-color:var(--azul2); box-shadow:0 0 0 1px var(--azul2) inset; }
+    .kpi .v { font-size:20px; font-weight:bold; color:var(--azul); }
+    .kpi .r { color:var(--cinza); font-size:11px; margin-top:2px; }
+    .kpi.alerta .v { color:#b65c00; }
+    .kpi.canc { background:#fff7f5; border-color:#ffbdad; } .kpi.canc .v { color:#bf2600; } .kpi.canc.sel { box-shadow:0 0 0 1px #de350b inset; border-color:#de350b; }
+    .filtros { display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+    .seg { display:inline-flex; border:1px solid #c1c7d0; border-radius:4px; overflow:hidden; }
+    .seg button { border-radius:0; background:#fff; color:#42526e; padding:6px 11px; }
+    .seg button.on { background:var(--azul); color:#fff; }
+    select, input { padding:6px 7px; border:1px solid #c1c7d0; border-radius:4px; font-size:12px; font-family:inherit; }
+    #busca { min-width:260px; }
+    .tabela { border:1px solid var(--borda); border-radius:6px; overflow:auto; max-height:calc(100vh - 290px); }
+    table { border-collapse:collapse; width:100%; min-width:1500px; }
+    th { position:sticky; top:0; background:var(--azul); color:#fff; text-align:left; padding:7px 8px; font-size:11px; z-index:1; white-space:nowrap; cursor:pointer; }
+    th.jira { background:var(--verde); } th.man { background:#ffab00; color:#172b4d; }
+    td { border-bottom:1px solid var(--borda); padding:6px 8px; vertical-align:top; }
+    tr:hover td { background:#f7faff; }
+    td.num { text-align:right; white-space:nowrap; }
+    td .sub { color:var(--cinza); font-size:11px; }
+    td select, td input { width:100%; padding:4px 5px; font-size:12px; }
+    .tipo { display:inline-block; padding:2px 7px; border-radius:10px; font-size:11px; font-weight:bold; white-space:nowrap; }
+    .tipo.pi { background:#deebff; color:#0747a6; } .tipo.ag { background:#eae6ff; color:#403294; } .tipo.ou { background:#f4f5f7; color:#42526e; }
+    tr.cancelado td { color:#97a0af; } tr.cancelado td .tipo { opacity:.6; }
+    .salvo { outline:2px solid #57d9a3; }
+    .vazio { padding:30px; text-align:center; color:var(--cinza); }
+    #msg { padding:7px 9px; border-radius:4px; display:none; font-size:12px; margin-bottom:10px; }
+    .ok { background:#e3fcef; color:#006644; } .erro { background:#ffebe6; color:#bf2600; } .info { background:#deebff; color:#0747a6; }
+    .imp { display:none; gap:8px; align-items:center; background:#f4f5f7; padding:8px 10px; border-radius:4px; margin-bottom:10px; }
+    .imp.on { display:flex; } .imp input { flex:1; }
+    .rodape { color:var(--cinza); font-size:11px; margin-top:6px; display:flex; justify-content:space-between; }
+  </style>
+</head>
+<body>
+  <div class="acoes">
+    <button class="novo" onclick="irPara('projeto')">➕ Novo Projeto Interno</button>
+    <button class="novo" onclick="irPara('agenda')">➕ Nova Agenda</button>
+    <span class="esp"></span>
+    <button class="secundario" onclick="toggleImportar()">📥 Importar issue(s) existente(s)</button>
+    <button class="primario" id="btnAtualizar" onclick="atualizarJira()">🔄 Atualizar do Jira</button>
+    <button class="secundario" onclick="google.script.run.irParaAbaControle()">📄 Abrir na planilha</button>
+  </div>
+
+  <div class="imp" id="boxImp">
+    <b>📥</b>
+    <input id="entradaImp" placeholder='Chaves (CIBKPRTH-7250, CIBKPRTH-7301) ou JQL: project = CIBKPRTH AND summary ~ "Criação de Agenda" AND created >= -30d'>
+    <button class="primario" id="btnImp" onclick="importar()">Importar</button>
+  </div>
+
+  <div id="msg"></div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="filtros">
+    <div class="seg" id="segTipo">
+      <button data-t="" class="on">Todos</button>
+      <button data-t="Projeto Interno">🏗️ Projetos Internos</button>
+      <button data-t="Agenda">📅 Agendas</button>
+    </div>
+    <select id="fStatus"><option value="">Todos os status de controle</option></select>
+    <label style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="fCancel"> mostrar cancelados</label>
+    <input id="busca" placeholder="🔎 Buscar projeto, analista, issue, nº solicitação…">
+  </div>
+
+  <div class="tabela">
+    <table>
+      <thead><tr>
+        <th data-o="tipo">Tipo</th>
+        <th data-o="issue">Issue</th>
+        <th data-o="abertaTs">Aberta em</th>
+        <th data-o="projeto">Projeto</th>
+        <th data-o="analista" class="man">Analista / Recurso ✎</th>
+        <th data-o="codigoPsa" class="man">Cód. PSA ✎</th>
+        <th data-o="de">Período</th>
+        <th data-o="valorHora">Vlr Hora</th>
+        <th data-o="horas">Dias / Horas</th>
+        <th data-o="valorTotal">Valor Total</th>
+        <th data-o="statusJira" class="jira">Status Jira</th>
+        <th data-o="numSolic" class="jira">Nº Solicitação</th>
+        <th data-o="statusControle" class="man">Status Controle ✎</th>
+        <th data-o="obs" class="man">Observações ✎</th>
+      </tr></thead>
+      <tbody id="corpo"><tr><td colspan="14" class="vazio">Carregando…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="rodape"><span id="contagem"></span><span>Colunas ✎ são editáveis aqui e gravam direto na planilha. Verde = vem do Jira.</span></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  let DADOS = { linhas: [], statusOpcoes: [] };
+  let filtroTipo = '', filtroKpi = '', ordem = { campo: 'abertaTs', desc: true };
+
+  const fmtMoeda = n => 'R$ ' + Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtNum = n => Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function mostrarMsg(t, c) { const m = $('msg'); m.className = c; m.innerHTML = t; m.style.display = 'block'; }
+
+  function irPara(aba) {
+    if (window.irParaAbaPainel) window.irParaAbaPainel(aba);
+    else google.script.run[aba === 'agenda' ? 'abrirTelaAgenda' : 'abrirTelaProjetoInterno']();
+  }
+
+  // ---------- carga ----------
+  function carregar(silencioso) {
+    if (!silencioso) $('corpo').innerHTML = '<tr><td colspan="14" class="vazio">Carregando…</td></tr>';
+    google.script.run.withSuccessHandler(d => {
+      DADOS = d;
+      const sel = $('fStatus'), atual = sel.value;
+      sel.innerHTML = '<option value="">Todos os status de controle</option>' +
+        d.statusOpcoes.map(s => `<option${s === atual ? ' selected' : ''}>${esc(s)}</option>`).join('');
+      render();
+    }).withFailureHandler(e => {
+      $('corpo').innerHTML = `<tr><td colspan="14" class="vazio" style="color:#bf2600">Erro ao ler o controle: ${esc(e.message)}</td></tr>`;
+    }).obterDadosControle();
+  }
+
+  // Recarrega quando a aba do painel volta a ficar visível (ex.: após criar uma issue)
+  window.addEventListener('message', ev => { if (ev.data && ev.data.__painel === 'shown') carregar(true); });
+
+  // ---------- KPIs ----------
+  // Cancelada no Controle OU no Jira
+  const cancelada = l => l.statusControle === 'Cancelado' || /cancel/i.test(l.statusJira || '');
+
+  function kpis(linhas) {
+    const ativos = linhas.filter(l => !cancelada(l));
+    const nCanc = linhas.length - ativos.length;
+    const cont = s => ativos.filter(l => l.statusControle === s).length;
+    const soma = (arr, c) => arr.reduce((a, l) => a + (l[c] || 0), 0);
+    const pi = ativos.filter(l => l.tipo === 'Projeto Interno'), ag = ativos.filter(l => l.tipo === 'Agenda');
+    const cards = [
+      { id: '', v: ativos.length, r: 'solicitações ativas' },
+      { id: 'tipo:Projeto Interno', v: pi.length, r: 'projetos internos' },
+      { id: 'tipo:Agenda', v: ag.length, r: 'agendas' },
+      { id: 'st:Aguardando solicitação', v: cont('Aguardando solicitação'), r: 'aguardando solicitação', alerta: true },
+      { id: 'st:Solicitação aberta', v: cont('Solicitação aberta'), r: 'solicitação aberta' },
+      { id: 'horas', v: fmtNum(soma(ativos, 'horas')), r: 'horas negociadas' },
+      { id: 'valor', v: fmtMoeda(soma(ativos, 'valorTotal')), r: 'valor total (sem cancelados)' },
+      { id: 'cancel', v: nCanc, r: 'cancelados', canc: true }
+    ];
+    $('kpis').innerHTML = cards.map(c =>
+      `<div class="kpi${c.alerta && c.v ? ' alerta' : ''}${c.canc ? ' canc' : ''}${filtroKpi === c.id && c.id ? ' sel' : ''}" data-k="${esc(c.id)}"><div class="v">${c.v}</div><div class="r">${c.r}</div></div>`).join('');
+    $('kpis').querySelectorAll('.kpi').forEach(k => k.onclick = () => {
+      const id = k.dataset.k;
+      if (id === 'cancel') { filtroKpi = filtroKpi === 'cancel' ? '' : 'cancel'; $('fStatus').value = ''; }
+      else if (id.indexOf('tipo:') === 0) { filtroTipo = id.slice(5); filtroKpi = ''; $('fStatus').value = ''; }
+      else if (id.indexOf('st:') === 0) { $('fStatus').value = id.slice(3); filtroKpi = id; }
+      else if (id === '') { filtroTipo = ''; filtroKpi = ''; $('fStatus').value = ''; $('busca').value = ''; }
+      atualizarSeg(); render();
+    });
+  }
+
+  // ---------- tabela ----------
+  function filtradas() {
+    const st = $('fStatus').value, q = $('busca').value.trim().toLowerCase(), mostrarCanc = $('fCancel').checked;
+    return DADOS.linhas.filter(l => {
+      if (filtroTipo && l.tipo !== filtroTipo) return false;
+      if (filtroKpi === 'cancel') return cancelada(l) && passaBusca(l, q);
+      if (st && l.statusControle !== st) return false;
+      if (!mostrarCanc && st !== 'Cancelado' && cancelada(l)) return false;
+      return passaBusca(l, q);
+    }).sort(ordenar);
+  }
+
+  function passaBusca(l, q) {
+    if (!q) return true;
+    const alvo = [l.issue, l.projeto, l.analista, l.codigoPsa, l.squad, l.numSolic, l.solicitante, l.statusJira, l.obs].join(' ').toLowerCase();
+    return alvo.indexOf(q) !== -1;
+  }
+
+  function ordenar(a, b) {
+    const x = a[ordem.campo], y = b[ordem.campo];
+    const r = (typeof x === 'number' && typeof y === 'number') ? x - y : String(x).localeCompare(String(y), 'pt-BR');
+    return ordem.desc ? -r : r;
+  }
+
+  function render() {
+    kpis(DADOS.linhas);
+    const linhas = filtradas();
+    const opc = DADOS.statusOpcoes;
+    $('contagem').textContent = `${linhas.length} de ${DADOS.linhas.length} solicitações`;
+    if (!linhas.length) {
+      $('corpo').innerHTML = `<tr><td colspan="14" class="vazio">${DADOS.linhas.length ? 'Nenhuma solicitação com esses filtros.' : 'Nenhuma solicitação no controle ainda. Crie um Projeto Interno ou uma Agenda, ou importe issues existentes.'}</td></tr>`;
+      return;
+    }
+    $('corpo').innerHTML = linhas.map(l => {
+      const cls = l.tipo === 'Projeto Interno' ? 'pi' : l.tipo === 'Agenda' ? 'ag' : 'ou';
+      const url = `${DADOS.jiraUrl}/browse/${encodeURIComponent(l.issue)}`;
+      const statusOpts = (opc.indexOf(l.statusControle) === -1 && l.statusControle ? [l.statusControle] : []).concat(opc)
+        .map(s => `<option${s === l.statusControle ? ' selected' : ''}>${esc(s)}</option>`).join('');
+      return `<tr class="${cancelada(l) ? 'cancelado' : ''}">
+        <td><span class="tipo ${cls}">${esc(l.tipo)}</span></td>
+        <td><a href="${url}">${esc(l.issue)}</a><div class="sub">${esc(l.solicitante)}</div></td>
+        <td>${esc(l.abertaEm.split(' ')[0])}</td>
+        <td style="min-width:260px">${esc(l.projeto)}<div class="sub">${esc(l.squad)}</div></td>
+        <td style="min-width:200px"><input data-i="${esc(l.issue)}" data-c="Analista / Recurso" value="${esc(l.analista)}"></td>
+        <td style="min-width:130px"><input data-i="${esc(l.issue)}" data-c="Código Projeto (PSA)" value="${esc(l.codigoPsa)}"></td>
+        <td style="white-space:nowrap">${esc(l.de)}${l.ate ? ' → ' + esc(l.ate) : ''}</td>
+        <td class="num">${l.valorHora ? fmtMoeda(l.valorHora) : ''}</td>
+        <td class="num">${fmtNum(l.dias)} d<div class="sub">${fmtNum(l.horas)} h</div></td>
+        <td class="num"><b>${fmtMoeda(l.valorTotal)}</b></td>
+        <td>${esc(l.statusJira)}</td>
+        <td>${l.numSolic ? (l.linkSolic ? `<a href="${esc(l.linkSolic)}">#${esc(l.numSolic)}</a>` : '#' + esc(l.numSolic)) : '<span class="sub">—</span>'}</td>
+        <td style="min-width:170px"><select data-i="${esc(l.issue)}" data-c="Status Controle">${statusOpts}</select></td>
+        <td style="min-width:200px"><input data-i="${esc(l.issue)}" data-c="Observações" value="${esc(l.obs)}"></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Edição inline → grava na planilha
+  document.addEventListener('change', ev => {
+    const el = ev.target;
+    if (!el.dataset || !el.dataset.i) return;
+    const issue = el.dataset.i, campo = el.dataset.c, valor = el.value;
+    google.script.run.withSuccessHandler(() => {
+      const l = DADOS.linhas.find(x => x.issue === issue);
+      if (l) {
+        const mapa = { 'Status Controle': 'statusControle', 'Observações': 'obs', 'Analista / Recurso': 'analista', 'Código Projeto (PSA)': 'codigoPsa' };
+        l[mapa[campo]] = valor;
+      }
+      el.classList.add('salvo'); setTimeout(() => el.classList.remove('salvo'), 900);
+      if (campo === 'Status Controle') kpis(DADOS.linhas);
+    }).withFailureHandler(e => mostrarMsg('❌ Não consegui salvar: ' + esc(e.message), 'erro'))
+      .alterarCampoControlePainel(issue, campo, valor);
+  });
+
+  // ---------- filtros / ordenação ----------
+  function atualizarSeg() { document.querySelectorAll('#segTipo button').forEach(b => b.classList.toggle('on', b.dataset.t === filtroTipo)); }
+  document.querySelectorAll('#segTipo button').forEach(b => b.onclick = () => { filtroTipo = b.dataset.t; atualizarSeg(); render(); });
+  $('fStatus').onchange = () => { filtroKpi = $('fStatus').value ? 'st:' + $('fStatus').value : ''; render(); };
+  $('fCancel').onchange = render;
+  $('busca').oninput = render;
+  document.querySelectorAll('th[data-o]').forEach(th => th.onclick = () => {
+    const c = th.dataset.o;
+    ordem = { campo: c, desc: ordem.campo === c ? !ordem.desc : false };
+    render();
+  });
+
+  // ---------- ações ----------
+  function atualizarJira() {
+    $('btnAtualizar').disabled = true;
+    mostrarMsg('🔄 Consultando o Jira (status, nº de solicitação e analistas)…', 'info');
+    google.script.run.withSuccessHandler(r => {
+      $('btnAtualizar').disabled = false;
+      const partes = [`✅ ${r.verificadas} issue(s) verificada(s)`, `${r.comSolicitacao} com nº de solicitação`];
+      if (r.novasSolicitacoes) partes.push(`🆕 ${r.novasSolicitacoes} nova(s) solicitação(ões)`);
+      if (r.analistasVinculados) partes.push(`👤 ${r.analistasVinculados} projeto(s) com analistas das agendas`);
+      if (r.canceladas) partes.push(`🚫 ${r.canceladas} marcada(s) como Cancelado (cancelada no Jira)`);
+      if (r.importados) partes.push(`${r.importados} importada(s) dos rascunhos`);
+      if (r.erros && r.erros.length) partes.push(`⚠️ não encontradas: ${r.erros.join(', ')}`);
+      mostrarMsg(partes.join(' · '), r.erros && r.erros.length ? 'info' : 'ok');
+      carregar(true);
+    }).withFailureHandler(e => { $('btnAtualizar').disabled = false; mostrarMsg('❌ ' + esc(e.message), 'erro'); })
+      .atualizarControlePainel();
+  }
+
+  function toggleImportar() { $('boxImp').classList.toggle('on'); if ($('boxImp').classList.contains('on')) $('entradaImp').focus(); }
+
+  function importar() {
+    const v = $('entradaImp').value.trim();
+    if (!v) return mostrarMsg('Informe as chaves das issues ou uma JQL.', 'erro');
+    $('btnImp').disabled = true;
+    mostrarMsg('📥 Importando…', 'info');
+    google.script.run.withSuccessHandler(r => {
+      $('btnImp').disabled = false;
+      const p = [`✅ Importadas: ${r.importadas.length}${r.importadas.length ? ' (' + r.importadas.join(', ') + ')' : ''}`];
+      if (r.jaExistiam.length) p.push(`↪️ já estavam: ${r.jaExistiam.join(', ')}`);
+      if (r.semLayout.length) p.push(`⚠️ sem valores (fora do template): ${r.semLayout.join(', ')}`);
+      if (r.erros.length) p.push(`❌ não encontradas: ${r.erros.join(', ')}`);
+      mostrarMsg(p.join(' · '), r.erros.length || r.semLayout.length ? 'info' : 'ok');
+      if (r.importadas.length) { $('entradaImp').value = ''; carregar(true); }
+    }).withFailureHandler(e => { $('btnImp').disabled = false; mostrarMsg('❌ ' + esc(e.message), 'erro'); })
+      .importarIssuesPainel(v);
+  }
+  $('entradaImp').addEventListener('keydown', e => { if (e.key === 'Enter') importar(); });
+
+  carregar();
+</script>
+</body>
+</html>

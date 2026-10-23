@@ -1,0 +1,58 @@
+name: Baixar fontes do Apps Script
+
+# Executar manualmente (Actions > Baixar fontes do Apps Script > Run workflow)
+# quando alguém alterar o código direto no editor do Apps Script.
+# Baixa a versão atual do projeto para src/ e faz commit das diferenças.
+# O commit feito aqui NÃO dispara a publicação (evita loop).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: apps-script
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    env:
+      SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar clasp
+        run: npm install -g @google/clasp@2.4.2
+
+      - name: Configurar credenciais do clasp
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ]; then echo "::error::Secret CLASPRC_JSON não configurado"; exit 1; fi
+          if [ -z "$SCRIPT_ID" ];   then echo "::error::Secret SCRIPT_ID não configurado"; exit 1; fi
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          printf '{"scriptId":"%s","rootDir":"src","fileExtension":"gs"}' "$SCRIPT_ID" > .clasp.json
+
+      - name: Baixar fontes (clasp pull)
+        run: |
+          # Limpa os fontes locais para refletir também arquivos apagados no Apps Script
+          rm -f src/*.gs src/*.html src/appsscript.json
+          clasp pull
+
+      - name: Commit das diferenças
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A src
+          if git diff --cached --quiet; then
+            echo "Nenhuma diferença entre o GitHub e o Apps Script." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            git diff --cached --stat | tee -a "$GITHUB_STEP_SUMMARY"
+            git commit -m "Baixar fontes do Apps Script (editados no editor online)"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi

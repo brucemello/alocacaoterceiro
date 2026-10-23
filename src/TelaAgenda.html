@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    :root { --azul:#4c9aff; --azul-esc:#0052cc; --verde:#00875a; --laranja:#ff8b00; --cinza:#6b778c; --borda:#dfe1e6; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #172b4d; margin: 0; padding: 14px 16px 84px; }
+    h2 { margin: 0 0 4px; color: #1f4e78; font-size: 17px; }
+    h3 { margin: 22px 0 8px; font-size: 14px; border-bottom: 2px solid #1f4e78; padding-bottom: 4px; }
+    .sub { color: var(--cinza); font-size: 12px; margin-bottom: 8px; }
+    .legenda span { display:inline-block; padding:2px 8px; border-radius:3px; margin-right:6px; font-size:11px; font-weight:bold; }
+    .lg-az { background:#deebff; color:var(--azul-esc); } .lg-vd { background:#e3fcef; color:var(--verde); } .lg-lj { background:#fff4e5; color:#b65c00; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+    .grid3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 14px; }
+    .full { grid-column: 1 / -1; }
+    .campo label { display:block; font-weight:bold; margin-bottom:3px; font-size:12px; }
+    .campo.az label::before { content:'● '; color:var(--azul); }
+    .campo.vd label::before { content:'● '; color:var(--verde); }
+    .campo.lj label::before { content:'● '; color:var(--laranja); }
+    input, select, textarea { width:100%; padding:6px 7px; border:1px solid #c1c7d0; border-radius:4px; font-size:13px; font-family:inherit; }
+    .az input, .az textarea, .az select { border-left:4px solid var(--azul); }
+    .vd input, .vd textarea, .vd select { border-left:4px solid var(--verde); }
+    .lj input, .lj textarea { border-left:4px solid var(--laranja); }
+    textarea { resize:vertical; }
+    input[readonly] { background:#f4f5f7; color:#42526e; }
+    .fixo { background:#f4f5f7; padding:7px; border-radius:4px; color:#42526e; }
+    .dica { color:var(--cinza); font-size:11px; margin-top:2px; }
+    details { border:1px solid var(--borda); border-radius:4px; padding:6px 10px; margin-top:10px; }
+    summary { cursor:pointer; font-weight:bold; }
+    .meses-esp { display:grid; grid-template-columns: repeat(4, 1fr); gap:6px 10px; margin-top:8px; }
+    .meses-esp label { font-size:11px; font-weight:bold; color:var(--verde); }
+    table { border-collapse:collapse; width:100%; font-size:12px; }
+    th, td { border:1px solid var(--borda); padding:3px 4px; text-align:center; }
+    th { background:#1f4e78; color:#fff; font-size:11px; }
+    td.rot { text-align:left; font-weight:bold; white-space:nowrap; background:#f4f5f7; }
+    td input { padding:3px; font-size:12px; text-align:right; border-left:3px solid var(--verde); min-width:44px; }
+    td.calc { text-align:right; color:#006644; }
+    td.tot { text-align:right; font-weight:bold; background:#deebff; color:var(--azul-esc); }
+    .opcoes-calc { display:flex; gap:18px; flex-wrap:wrap; align-items:center; background:#f7faff; border:1px solid #deebff; padding:7px 10px; border-radius:4px; margin-bottom:8px; }
+    .opcoes-calc label { display:flex; gap:5px; align-items:center; font-weight:normal; }
+    .opcoes-calc input[type=checkbox] { width:auto; }
+    .opcoes-calc input[type=text] { width:56px; text-align:right; }
+    button { padding:8px 14px; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:13px; }
+    .primario { background:#0052cc; color:#fff; } .secundario { background:#ebecf0; color:#172b4d; }
+    .sucesso { background:#00875a; color:#fff; } .salvar { background:#ffab00; color:#172b4d; } .mini { padding:4px 8px; font-size:11px; }
+    button:disabled { opacity:.5; cursor:default; }
+    .barra { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--borda); padding:10px 16px; display:flex; gap:8px; justify-content:flex-end; align-items:center; }
+    .barra #msg { flex:1; margin:0; }
+    #msg { padding:7px 9px; border-radius:4px; display:none; font-size:12px; max-height:64px; overflow:auto; }
+    .ok { background:#e3fcef; color:#006644; } .erro { background:#ffebe6; color:#bf2600; } .info { background:#deebff; color:#0747a6; }
+    pre { background:#f4f5f7; padding:8px; border-radius:4px; max-height:300px; overflow:auto; font-size:11px; white-space:pre-wrap; }
+    .titulo-prev { background:#f4f5f7; padding:8px; border-radius:4px; font-weight:bold; }
+    .rascunhos { display:flex; gap:8px; align-items:center; margin-top:10px; padding:8px 10px; background:#f4f5f7; border-radius:4px; }
+    .rascunhos select { width:auto; flex:1; max-width:560px; }
+    .faltando { outline:2px solid #de350b; outline-offset:3px; border-radius:4px; background:#fff4f2; }
+    .faltando > label { color:#bf2600; }
+    .titulo-box { background:#fffae6; border:1px solid #ffe380; padding:7px 10px; border-radius:4px; margin-top:8px; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h2>📅 Solicitação de Criação de Agenda</h2>
+  <div class="sub">Preencha os campos azuis (obrigatórios) e, se houver, os verdes e laranjas. O restante do layout do template CIBKPRTH-7191 é montado automaticamente.</div>
+  <div class="legenda"><span class="lg-az">AZUL · obrigatório</span><span class="lg-vd">VERDE · opcional</span><span class="lg-lj">LARANJA · só Projetos SFA (TOTVS CRM)</span></div>
+
+  <div class="rascunhos">
+    <b>📂 Rascunhos:</b>
+    <select id="selRascunho"><option value="">— carregando… —</option></select>
+    <button class="secundario mini" onclick="abrirRascunho()">Abrir</button>
+    <button class="secundario mini" onclick="novoFormulario()">Novo</button>
+    <span id="statusRascunho" class="dica"></span>
+  </div>
+
+  <h3>Issue no Jira</h3>
+  <div class="grid3">
+    <div class="campo az">
+      <label>Projeto Jira</label>
+      <input id="projetoJira" style="text-transform:uppercase">
+    </div>
+    <div class="campo az">
+      <label>Tipo de issue</label>
+      <select id="tipoIssue"><option value="">— informe o projeto —</option></select>
+      <div class="dica" id="dicaTipo"></div>
+    </div>
+    <div class="campo az">
+      <label>Épico (Epic Link)</label>
+      <input id="epico" style="text-transform:uppercase">
+      <div class="dica">Vem da template (Agendas de Terceiros/Totvers). Em testes, deixe em branco.</div>
+    </div>
+  </div>
+  <div id="boxCamposProjeto" class="grid3" style="margin-top:10px"></div>
+  <div class="fixo" id="fixosIssue" style="margin-top:8px"></div>
+  <div class="titulo-box">Título: <b id="tituloAoVivo">Criação de Agenda - Projeto : … - Recurso: …</b></div>
+
+  <h3>Tabela 01 - Dados da Alocação</h3>
+  <div class="grid">
+    <div class="campo az"><label>Código Recurso (PSA)</label><input id="codigoRecurso" placeholder="999999"></div>
+    <div class="campo az"><label>Nome Completo do Recurso <span style="font-weight:normal;color:#6b778c">(vai para o título)</span></label><input id="nomeRecurso"></div>
+    <div class="campo az"><label>Código do Projeto (PSA) <span style="font-weight:normal;color:#6b778c">(vai para o título)</span></label><input id="codigoProjeto" placeholder="D000099999999" style="text-transform:uppercase"></div>
+    <div class="campo az"><label>Nome do Projeto (PSA)</label><input id="nomeProjeto"></div>
+    <div class="campo vd"><label>Nome da Consultoria <span style="font-weight:normal;color:#6b778c">(para consultores externos)</span></label><input id="consultoria"></div>
+    <div class="campo az"><label>Nome do SQUAD onde o recurso estará alocado</label><input id="squad"></div>
+    <div class="campo vd"><label>Valor hora negociado da alocação (R$)</label><input id="valorHora" inputmode="decimal" placeholder="999,99">
+      <div class="dica">Obrigatório para Consultores Externos. Usado no cálculo do Valor Total.</div></div>
+    <div class="campo az"><label>Papel/Categoria do Recurso (PSA)</label><input id="papel"></div>
+    <div class="campo az"><label>Alocação (Período - De)</label><input id="dataDe" type="date"></div>
+    <div class="campo az"><label>Alocação (Período - Até)</label><input id="dataAte" type="date"></div>
+    <div class="campo az"><label>E-mail do Recurso</label><input id="email" type="email"></div>
+    <div></div>
+    <div class="campo vd full"><label>Não alocar nas seguintes datas</label>
+      <input id="naoAlocar" placeholder="DD/MM (motivo), DD/MM (motivo)">
+      <div class="dica">Ex.: 24/12 (véspera), 31/12 (folga). Essas datas são descontadas do cálculo automático.</div></div>
+    <div class="campo vd full"><label>Observação</label><textarea id="observacao" rows="2"></textarea></div>
+  </div>
+
+  <details id="boxEsp">
+    <summary>Dias específicos a alocar <span style="font-weight:normal;color:#6b778c">— só para alocações em dias alternados</span></summary>
+    <div class="dica" style="margin-top:6px">Se a alocação for sequencial, deixe em branco (basta o período De/Até). Num mês preenchido aqui, só esses dias contam no cálculo.</div>
+    <div class="meses-esp" id="mesesEsp"></div>
+  </details>
+
+  <details id="boxCrm">
+    <summary style="color:#b65c00">Para TOTVS CRM <span style="font-weight:normal;color:#6b778c">— só Projetos SFA</span></summary>
+    <div class="grid" style="margin-top:8px">
+      <div class="campo lj"><label>Issue (Épico)</label><input id="crmEpico" placeholder="XXXXXXXXXX-99999"></div>
+      <div class="campo lj"><label>Issue (Subtarefa) / Data / Horas</label><input id="crmSubtarefa" placeholder="XXXXXXXXXX-99999"></div>
+    </div>
+  </details>
+
+  <h3>Tabela 02 - Dados Financeiros da Alocação</h3>
+  <div class="opcoes-calc">
+    <label><input type="checkbox" id="autoCalc" checked onchange="aplicarModoAuto()"> <b>Calcular automaticamente</b> pelo período De/Até</label>
+    <label><input type="checkbox" id="descontarFeriados" checked onchange="recalcular()"> descontar feriados nacionais</label>
+    <label>Horas/dia: <input type="text" id="horasDia" value="8" inputmode="decimal"></label>
+  </div>
+  <div class="dica" id="dicaCalc" style="margin-bottom:6px"></div>
+  <table>
+    <thead><tr id="cabMeses"></tr></thead>
+    <tbody>
+      <tr id="linDias"></tr>
+      <tr id="linHoras"></tr>
+      <tr id="linValor"></tr>
+    </tbody>
+  </table>
+
+  <div id="boxPrevia" style="display:none">
+    <h3>Prévia</h3>
+    <label style="font-weight:bold">Título</label>
+    <div class="titulo-prev" id="previaTitulo"></div>
+    <label style="font-weight:bold;display:block;margin-top:8px">Descrição (wiki markup do Jira)</label>
+    <pre id="previaDescricao"></pre>
+  </div>
+
+  <div class="barra">
+    <div id="msg"></div>
+    <button class="secundario" onclick="fechar()">Fechar</button>
+    <button class="salvar" id="btnSalvar" onclick="salvarRascunho()">💾 Salvar rascunho</button>
+    <button class="primario" id="btnPrevia" onclick="gerarPrevia()">Revisar</button>
+    <button class="sucesso" id="btnCriar" onclick="criar()" disabled>Confirmar e criar</button>
+  </div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  var CFG = null, rascunhoId = '', alterado = false, tipoDesejado = '', camposDesejados = {}, defsCamposProjeto = [];
+  const CAMPOS_TEXTO = ['projetoJira', 'epico', 'codigoRecurso', 'nomeRecurso', 'codigoProjeto', 'nomeProjeto',
+    'consultoria', 'squad', 'valorHora', 'papel', 'dataDe', 'dataAte', 'email', 'naoAlocar', 'observacao',
+    'crmEpico', 'crmSubtarefa', 'horasDia'];
+
+  // ---------- utilidades ----------
+  function num(v) {
+    v = String(v == null ? '' : v).trim(); if (!v) return 0;
+    const n = v.indexOf(',') !== -1 ? parseFloat(v.replace(/\./g, '').replace(',', '.')) : parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  }
+  function fmt(n, c) { return Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: c, maximumFractionDigits: c }); }
+  function escHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function mostrar(t, cls) { const m = $('msg'); m.className = cls; m.innerHTML = t; m.style.display = 'block'; }
+  function invalidar() { $('btnCriar').disabled = true; }
+  function parseData(s) { const p = String(s || '').split('-'); return p.length === 3 ? new Date(+p[0], +p[1] - 1, +p[2]) : null; }
+  function mmdd(d) { return String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+  // ---------- feriados nacionais ----------
+  function pascoa(y) {
+    const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4,
+      f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30,
+      i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    return new Date(y, Math.floor((h + l - 7 * m + 114) / 31) - 1, ((h + l - 7 * m + 114) % 31) + 1);
+  }
+  const cacheFeriados = {};
+  function feriadosDoAno(y) {
+    if (cacheFeriados[y]) return cacheFeriados[y];
+    const s = new Set(['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25']);
+    const sextaSanta = pascoa(y); sextaSanta.setDate(sextaSanta.getDate() - 2);
+    s.add(mmdd(sextaSanta));
+    return (cacheFeriados[y] = s);
+  }
+
+  // ---------- inicialização ----------
+  google.script.run.withSuccessHandler(cfg => {
+    CFG = cfg;
+    $('projetoJira').value = cfg.projetoPadrao;
+    $('epico').value = cfg.epicoPadrao;
+    $('fixosIssue').innerHTML = `Fixo: Prioridade <b>${escHtml(cfg.prioridade)}</b> (igual à template ${cfg.template})` +
+      (cfg.epicoPadrao ? '' : ' · <span style="color:#bf2600">não consegui ler o épico da template — informe manualmente</span>');
+
+    $('mesesEsp').innerHTML = cfg.meses.map((m, i) =>
+      `<div class="campo vd"><label>${m}</label><input data-esp="${i}" placeholder="DD, DD, DD"></div>`).join('');
+    $('cabMeses').innerHTML = '<th>Meses da alocação</th>' + cfg.meses.map(m => `<th>${m}</th>`).join('') + '<th>Total</th>';
+    $('linDias').innerHTML = '<td class="rot">Dias de alocação</td>' +
+      cfg.meses.map((m, i) => `<td><input data-mes="${i}" data-c="dias" inputmode="numeric"></td>`).join('') + '<td class="tot" id="totDias">0</td>';
+    $('linHoras').innerHTML = '<td class="rot">Horas de alocação</td>' +
+      cfg.meses.map((m, i) => `<td><input data-mes="${i}" data-c="horas" inputmode="numeric"></td>`).join('') + '<td class="tot" id="totHoras">0</td>';
+    $('linValor').innerHTML = '<td class="rot">Valor Total da alocação</td>' +
+      cfg.meses.map((m, i) => `<td class="calc" id="val${i}">0,00</td>`).join('') + '<td class="tot" id="totValor">0,00</td>';
+
+    $('projetoJira').addEventListener('change', () => carregarTipos());
+    $('tipoIssue').addEventListener('change', () => carregarCamposProjeto());
+    ligarEventos();
+    carregarTipos();
+    aplicarModoAuto();
+    carregarListaRascunhos();
+  }).withFailureHandler(e => mostrar('Erro ao carregar: ' + e.message, 'erro')).obterConfigAgenda();
+
+  function ligarEventos() {
+    const doForm = e => !e.target.closest('.rascunhos');
+    document.body.addEventListener('input', e => {
+      if (!doForm(e)) return;
+      invalidar(); marcarAlterado();
+      const f = e.target.closest('.faltando'); if (f) f.classList.remove('faltando');
+      atualizarTitulo();
+      if (e.target.closest('table, #mesesEsp') || ['dataDe', 'dataAte', 'naoAlocar', 'valorHora', 'horasDia'].indexOf(e.target.id) !== -1) recalcular();
+    });
+    document.body.addEventListener('change', e => {
+      if (!doForm(e)) return;
+      invalidar(); marcarAlterado();
+      const f = e.target.closest('.faltando'); if (f) f.classList.remove('faltando');
+      if (['dataDe', 'dataAte'].indexOf(e.target.id) !== -1) recalcular();
+    });
+    setInterval(() => { if (alterado && podeSalvar()) salvarRascunho(true); }, 120000);
+  }
+
+  function atualizarTitulo() {
+    const p = $('codigoProjeto').value.trim().toUpperCase() || '…', r = $('nomeRecurso').value.trim() || '…';
+    $('tituloAoVivo').textContent = `Criação de Agenda - Projeto : ${p} - Recurso: ${r}`;
+  }
+
+  // ---------- Tabela 02 ----------
+  function modoAuto() { return $('autoCalc').checked; }
+  function inp(i, c) { return document.querySelector(`[data-mes="${i}"][data-c="${c}"]`); }
+
+  function aplicarModoAuto() {
+    const auto = modoAuto();
+    document.querySelectorAll('[data-mes]').forEach(el => el.readOnly = auto);
+    $('descontarFeriados').disabled = !auto;
+    recalcular();
+  }
+
+  function calcularDiasPeriodo() {
+    const de = parseData($('dataDe').value), ate = parseData($('dataAte').value);
+    const dias = Array(12).fill(0);
+    if (!de || !ate || ate < de) return { dias, aviso: (de && ate && ate < de) ? 'A data "Até" é anterior à "De".' : 'Informe o período De/Até para calcular.' };
+
+    const naoAlocar = new Set((($('naoAlocar').value || '').match(/\b(\d{1,2})\/(\d{1,2})\b/g) || [])
+      .map(s => { const [d, m] = s.split('/'); return String(+m).padStart(2, '0') + '-' + String(+d).padStart(2, '0'); }));
+    const especificos = {};
+    document.querySelectorAll('[data-esp]').forEach(el => {
+      const lista = (el.value.match(/\d{1,2}/g) || []).map(Number).filter(n => n >= 1 && n <= 31);
+      if (lista.length) especificos[el.dataset.esp] = new Set(lista);
+    });
+    const meses = new Set();
+    const usaFeriado = $('descontarFeriados').checked;
+    for (let d = new Date(de); d <= ate; d.setDate(d.getDate() + 1)) {
+      const m = d.getMonth();
+      meses.add(d.getFullYear() * 12 + m);
+      if (especificos[m]) { if (especificos[m].has(d.getDate())) dias[m]++; continue; }
+      const dow = d.getDay();
+      if (dow === 0 || dow === 6) continue;
+      if (usaFeriado && feriadosDoAno(d.getFullYear()).has(mmdd(d))) continue;
+      if (naoAlocar.has(mmdd(d))) continue;
+      dias[m]++;
+    }
+    const aviso = meses.size > 12 ? '⚠️ O período passa de 12 meses: meses repetidos foram somados na mesma coluna.' : '';
+    return { dias, aviso };
+  }
+
+  function recalcular() {
+    const hDia = num($('horasDia').value) || 8, vh = num($('valorHora').value);
+    if (modoAuto()) {
+      const r = calcularDiasPeriodo();
+      r.dias.forEach((d, i) => { inp(i, 'dias').value = d || ''; inp(i, 'horas').value = d ? fmt(d * hDia, 0).replace(/\./g, '') : ''; });
+      $('dicaCalc').textContent = r.aviso || ('Dias úteis do período' + ($('descontarFeriados').checked ? ', sem feriados nacionais' : '') +
+        ' e sem as datas de "Não alocar". Horas = dias × ' + fmt(hDia, hDia % 1 ? 1 : 0) + 'h. Valor = horas × valor hora negociado.');
+    } else {
+      $('dicaCalc').textContent = 'Modo manual: digite dias e horas por mês. Valor = horas × valor hora negociado.';
+    }
+    let tD = 0, tH = 0, tV = 0;
+    for (let i = 0; i < 12; i++) {
+      const d = num(inp(i, 'dias').value), h = num(inp(i, 'horas').value), v = h * vh;
+      $('val' + i).textContent = fmt(v, 2);
+      tD += d; tH += h; tV += v;
+    }
+    $('totDias').textContent = fmt(tD, 0); $('totHoras').textContent = fmt(tH, 0); $('totValor').textContent = fmt(tV, 2);
+  }
+
+  // ---------- tipos e campos obrigatórios do projeto ----------
+  function carregarTipos() {
+    const p = $('projetoJira').value.trim().toUpperCase();
+    $('tipoIssue').innerHTML = '<option value="">— carregando… —</option>'; $('dicaTipo').textContent = '';
+    if (!p) { $('tipoIssue').innerHTML = '<option value="">— informe o projeto —</option>'; return; }
+    google.script.run.withSuccessHandler(r => {
+      if (!r.tipos.length) { $('tipoIssue').innerHTML = '<option value="">— nenhum tipo —</option>'; return; }
+      $('tipoIssue').innerHTML = '<option value="">— selecione —</option>' +
+        r.tipos.map(t => `<option value="${t.id}">${escHtml(t.nome)}${t.id === r.padrao ? ' (padrão)' : ''}</option>`).join('');
+      const esc = (tipoDesejado && r.tipos.some(t => t.id === tipoDesejado)) ? tipoDesejado : r.padrao;
+      $('tipoIssue').value = esc || ''; tipoDesejado = '';
+      $('dicaTipo').textContent = r.padrao ? '' : `${p} não tem "Tarefa": escolha um tipo.`;
+      carregarCamposProjeto();
+    }).withFailureHandler(e => {
+      $('tipoIssue').innerHTML = '<option value="">— erro ao carregar —</option>'; $('dicaTipo').textContent = e.message;
+    }).listarTiposProjetoAG(p);
+  }
+
+  function carregarCamposProjeto() {
+    const p = $('projetoJira').value.trim().toUpperCase(), t = $('tipoIssue').value, box = $('boxCamposProjeto');
+    const guardados = Object.assign({}, lerCamposProjeto(), camposDesejados);
+    box.innerHTML = ''; defsCamposProjeto = [];
+    if (!p || !t) return;
+    google.script.run.withSuccessHandler(defs => {
+      defsCamposProjeto = defs;
+      box.innerHTML = defs.map(d => {
+        const val = guardados[d.id];
+        let html;
+        if (d.opcoes.length) {
+          const sel = v => (Array.isArray(val) ? val.indexOf(v) !== -1 : String(val || '') === v) ? ' selected' : '';
+          html = `<select data-campo="${d.id}"${d.multiplo ? ' multiple size="4"' : ''}>` +
+            (d.multiplo ? '' : '<option value="">— selecione —</option>') +
+            d.opcoes.map(o => `<option value="${escHtml(o.id)}"${sel(o.id)}>${escHtml(o.nome)}</option>`).join('') + '</select>' +
+            (d.multiplo ? '<div class="dica">Ctrl+clique para escolher mais de um.</div>' : '');
+        } else {
+          html = `<input data-campo="${d.id}" value="${escHtml(Array.isArray(val) ? val.join(', ') : (val || ''))}">`;
+        }
+        return `<div class="campo az"><label>${escHtml(d.nome)} <span style="font-weight:normal;color:#6b778c">(obrigatório no ${p})</span></label>${html}</div>`;
+      }).join('');
+      camposDesejados = {};
+    }).withFailureHandler(e => {
+      box.innerHTML = `<div class="dica full">Não consegui ler os campos obrigatórios do projeto: ${escHtml(e.message)}</div>`;
+    }).listarCamposObrigatoriosPI(p, t);
+  }
+
+  function lerCamposProjeto() {
+    const r = {};
+    document.querySelectorAll('#boxCamposProjeto [data-campo]').forEach(el => {
+      r[el.dataset.campo] = el.multiple ? Array.from(el.selectedOptions).map(o => o.value) : el.value;
+    });
+    return r;
+  }
+
+  // ---------- coleta ----------
+  function coletar() {
+    const d = { rascunhoId: rascunhoId, tipoIssueId: $('tipoIssue').value, camposProjeto: lerCamposProjeto(),
+      autoCalc: modoAuto(), descontarFeriados: $('descontarFeriados').checked };
+    CAMPOS_TEXTO.forEach(id => d[id] = $(id).value);
+    d.diasEspecificos = Array.from({ length: 12 }, (_, i) => document.querySelector(`[data-esp="${i}"]`).value);
+    d.meses = Array.from({ length: 12 }, (_, i) => ({ mes: CFG.meses[i], dias: inp(i, 'dias').value, horas: inp(i, 'horas').value }));
+    return d;
+  }
+
+  function preencher(d) {
+    d = d || {};
+    CAMPOS_TEXTO.forEach(id => $(id).value = d[id] != null ? d[id] : '');
+    if (!$('horasDia').value) $('horasDia').value = '8';
+    (d.diasEspecificos || []).forEach((v, i) => { const el = document.querySelector(`[data-esp="${i}"]`); if (el) el.value = v || ''; });
+    if (!(d.diasEspecificos || []).length) document.querySelectorAll('[data-esp]').forEach(el => el.value = '');
+    $('boxEsp').open = (d.diasEspecificos || []).some(v => String(v || '').trim());
+    $('boxCrm').open = !!(String(d.crmEpico || '').trim() || String(d.crmSubtarefa || '').trim());
+    $('autoCalc').checked = d.autoCalc !== false;
+    $('descontarFeriados').checked = d.descontarFeriados !== false;
+    for (let i = 0; i < 12; i++) {
+      const m = (d.meses || [])[i] || {};
+      inp(i, 'dias').value = m.dias || ''; inp(i, 'horas').value = m.horas || '';
+    }
+    tipoDesejado = d.tipoIssueId || '';
+    camposDesejados = d.camposProjeto || {};
+    $('boxCamposProjeto').innerHTML = '';
+    carregarTipos();
+    aplicarModoAuto();
+    atualizarTitulo();
+  }
+
+  // ---------- rascunhos ----------
+  function podeSalvar() { return $('nomeRecurso').value.trim() || $('codigoProjeto').value.trim(); }
+  function marcarAlterado() { alterado = true; $('statusRascunho').textContent = rascunhoId ? '● alterações não salvas' : '● ainda não salvo'; }
+
+  function carregarListaRascunhos(selecionar) {
+    google.script.run.withSuccessHandler(lista => {
+      if (!lista.length) { $('selRascunho').innerHTML = '<option value="">— nenhum rascunho salvo —</option>'; return; }
+      $('selRascunho').innerHTML = '<option value="">— selecione um rascunho —</option>' + lista.map(r =>
+        `<option value="${r.id}">${r.status === 'Criada' ? '✅' : '📝'} ${escHtml(r.nome)} · ${r.quandoTxt} · ${escHtml(r.usuario)}${r.issue ? ' · ' + escHtml(r.issue) : ''}</option>`).join('');
+      if (selecionar) $('selRascunho').value = selecionar;
+    }).withFailureHandler(() => { $('selRascunho').innerHTML = '<option value="">— nenhum rascunho salvo —</option>'; }).listarRascunhosAG();
+  }
+
+  function salvarRascunho(silencioso) {
+    if (!podeSalvar()) { if (!silencioso) mostrar('Informe ao menos o <b>Nome do Recurso</b> ou o <b>Código do Projeto</b> para salvar.', 'erro'); return; }
+    $('btnSalvar').disabled = true;
+    google.script.run.withSuccessHandler(r => {
+      rascunhoId = r.id; alterado = false; $('btnSalvar').disabled = false;
+      $('statusRascunho').textContent = `✔ salvo às ${r.quando}` + (silencioso ? ' (automático)' : '');
+      if (!silencioso) mostrar('💾 Rascunho salvo na aba <b>Rascunhos_Agenda</b>.', 'ok');
+      carregarListaRascunhos(r.id);
+    }).withFailureHandler(e => { $('btnSalvar').disabled = false; if (!silencioso) mostrar('Erro ao salvar: ' + e.message, 'erro'); })
+      .salvarRascunhoAG(coletar(), rascunhoId);
+  }
+
+  function abrirRascunho() {
+    const id = $('selRascunho').value;
+    if (!id) return mostrar('Selecione um rascunho na lista.', 'erro');
+    if (alterado && !confirm('Há alterações não salvas. Abrir o rascunho mesmo assim?')) return;
+    google.script.run.withSuccessHandler(d => {
+      preencher(d); rascunhoId = id; alterado = false;
+      $('statusRascunho').textContent = '✔ rascunho aberto'; $('boxPrevia').style.display = 'none';
+      mostrar('Rascunho carregado. Revise e clique em <b>Revisar</b>.', 'ok');
+    }).withFailureHandler(e => mostrar('Erro: ' + e.message, 'erro')).carregarRascunhoAG(id);
+  }
+
+  function novoFormulario() {
+    if (alterado && !confirm('Há alterações não salvas. Começar um formulário novo mesmo assim?')) return;
+    preencher({ projetoJira: CFG.projetoPadrao, epico: CFG.epicoPadrao, horasDia: '8' });
+    rascunhoId = ''; alterado = false; $('selRascunho').value = ''; $('statusRascunho').textContent = '';
+    $('boxPrevia').style.display = 'none'; $('msg').style.display = 'none';
+  }
+
+  function fechar() {
+    if (alterado && !confirm('Há alterações não salvas. Fechar sem salvar o rascunho?')) return;
+    google.script.host.close();
+  }
+
+  // ---------- validação visual ----------
+  const MAPA = {
+    'Código Recurso': 'codigoRecurso', 'Nome Completo do Recurso': 'nomeRecurso', 'Código do Projeto': 'codigoProjeto',
+    'Nome do Projeto': 'nomeProjeto', 'Nome do SQUAD': 'squad', 'Papel/Categoria': 'papel',
+    'Período - De': 'dataDe', 'Período - Até': 'dataAte', 'E-mail do Recurso': 'email',
+    'Valor hora negociado': 'valorHora', 'Tabela 02': 'linDias', 'data "Até"': 'dataAte'
+  };
+  function destacarFaltantes(msg) {
+    document.querySelectorAll('.faltando').forEach(el => el.classList.remove('faltando'));
+    let primeiro = null;
+    Object.keys(MAPA).forEach(k => {
+      if (msg.indexOf(k) === -1) return;
+      const el = $(MAPA[k]); if (!el) return;
+      const alvo = el.closest('.campo') || el.closest('table') || el;
+      alvo.classList.add('faltando'); if (!primeiro) primeiro = alvo;
+    });
+    if (primeiro) primeiro.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function faltandoCamposProjeto() {
+    const vals = lerCamposProjeto();
+    return defsCamposProjeto.filter(d => { const v = vals[d.id]; return Array.isArray(v) ? !v.length : !String(v || '').trim(); });
+  }
+
+  // ---------- prévia e criação ----------
+  function gerarPrevia() {
+    mostrar('Montando prévia…', 'info');
+    google.script.run.withSuccessHandler(p => {
+      $('previaTitulo').textContent = p.titulo; $('previaDescricao').textContent = p.descricao;
+      $('boxPrevia').style.display = 'block'; $('btnCriar').disabled = false;
+      $('boxPrevia').scrollIntoView({ behavior: 'smooth' });
+      mostrar('Confira a prévia e clique em <b>Confirmar e criar</b>. (prévia salva como rascunho)', 'info');
+      salvarRascunho(true);
+    }).withFailureHandler(e => { mostrar('❌ ' + e.message, 'erro'); destacarFaltantes(e.message); }).gerarPreviaAgenda(coletar());
+  }
+
+  function criar() {
+    const falta = faltandoCamposProjeto();
+    if (falta.length) {
+      mostrar('❌ Preencha os campos obrigatórios do projeto: ' + falta.map(d => d.nome).join(', '), 'erro');
+      falta.forEach(d => { const el = document.querySelector(`#boxCamposProjeto [data-campo="${d.id}"]`); if (el) el.closest('.campo').classList.add('faltando'); });
+      $('boxCamposProjeto').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    $('btnCriar').disabled = true; $('btnPrevia').disabled = true;
+    mostrar('Criando issue no Jira…', 'info');
+    google.script.run.withSuccessHandler(r => {
+      const aviso = String(r.epico || '').indexOf('⚠️') !== -1;
+      mostrar(`✅ Issue criada: <a href="${r.url}" target="_blank">${r.key}</a><br>${r.epico || ''}`, aviso ? 'info' : 'ok');
+      $('btnPrevia').disabled = false; alterado = false;
+      if (r.rascunhoId) rascunhoId = r.rascunhoId;
+      $('statusRascunho').textContent = `✅ criada como ${r.key}`;
+      carregarListaRascunhos(rascunhoId);
+    }).withFailureHandler(e => { mostrar('❌ ' + e.message, 'erro'); $('btnPrevia').disabled = false; }).criarIssueAgenda(coletar());
+  }
+</script>
+</body>
+</html>

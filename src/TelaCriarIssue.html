@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #172b4d; margin: 0; padding: 16px; }
+    h2 { margin: 0 0 12px; color: #1f4e78; font-size: 17px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+    .full { grid-column: 1 / -1; }
+    label { display: block; font-weight: bold; margin-bottom: 3px; }
+    input, select, textarea { width: 100%; padding: 7px; border: 1px solid #c1c7d0; border-radius: 4px; font-size: 13px; }
+    textarea { resize: vertical; }
+    .linha { display: flex; gap: 6px; }
+    .linha input { flex: 1; }
+    button { padding: 8px 14px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .primario { background: #0052cc; color: #fff; }
+    .secundario { background: #ebecf0; color: #172b4d; }
+    .sucesso { background: #00875a; color: #fff; }
+    button:disabled { opacity: .5; cursor: default; }
+    .acoes { margin-top: 14px; display: flex; gap: 8px; justify-content: flex-end; }
+    .obrig { background: #fffae6; border: 1px solid #ffe380; padding: 8px; border-radius: 4px; }
+    .obrig ul { margin: 4px 0 0 18px; padding: 0; }
+    pre { background: #f4f5f7; padding: 8px; border-radius: 4px; max-height: 180px; overflow: auto; font-size: 11px; }
+    #msg { margin-top: 10px; padding: 8px; border-radius: 4px; display: none; }
+    .ok { background: #e3fcef; color: #006644; }
+    .erro { background: #ffebe6; color: #bf2600; }
+    .info { background: #deebff; color: #0747a6; }
+    .dica { color: #6b778c; font-size: 11px; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <h2>➕ Nova issue no Jira</h2>
+
+  <div class="grid">
+    <div>
+      <label>Projeto (chave)</label>
+      <div class="linha">
+        <input id="projeto" placeholder="ex.: CIBKPRTH">
+        <button class="secundario" onclick="carregarTipos()">Carregar</button>
+      </div>
+    </div>
+    <div>
+      <label>Tipo de issue</label>
+      <select id="tipo" onchange="carregarObrigatorios()"><option value="">— carregue o projeto —</option></select>
+    </div>
+
+    <div class="full" id="boxObrig" style="display:none"></div>
+
+    <div class="full">
+      <label>Resumo</label>
+      <input id="resumo" maxlength="255">
+    </div>
+    <div class="full">
+      <label>Descrição</label>
+      <textarea id="descricao" rows="5"></textarea>
+      <div class="dica">Aceita a formatação wiki do Jira (*negrito*, h3., listas com *, etc.).</div>
+    </div>
+
+    <div>
+      <label>Responsável (login Jira)</label>
+      <input id="responsavel" placeholder="ex.: bruce.mello">
+    </div>
+    <div>
+      <label>Prioridade</label>
+      <input id="prioridade" placeholder="ex.: Média">
+    </div>
+    <div>
+      <label>Labels (vírgula)</label>
+      <input id="labels">
+    </div>
+    <div>
+      <label>Componentes (vírgula)</label>
+      <input id="componentes">
+    </div>
+    <div>
+      <label>Data limite</label>
+      <input id="dataLimite" type="date">
+    </div>
+    <div>
+      <label>Vincular a (issue existente)</label>
+      <input id="vincularA" placeholder="ex.: CIBKPRTH-7190">
+    </div>
+    <div class="full">
+      <label>Campos extras (JSON)</label>
+      <textarea id="camposExtras" rows="3" placeholder='{"customfield_10048": {"name": "login"}}'></textarea>
+      <div class="dica">Use para os campos obrigatórios/customizados listados acima.</div>
+    </div>
+  </div>
+
+  <div id="boxPrevia" style="display:none">
+    <label style="margin-top:12px">Prévia do que será enviado ao Jira</label>
+    <pre id="previa"></pre>
+  </div>
+
+  <div id="msg"></div>
+
+  <div class="acoes">
+    <button class="secundario" onclick="google.script.host.close()">Fechar</button>
+    <button class="primario" id="btnPrevia" onclick="gerarPrevia()">Revisar</button>
+    <button class="sucesso" id="btnCriar" onclick="criar()" disabled>Confirmar e criar</button>
+  </div>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  function coletar() {
+    return {
+      projeto: $('projeto').value, tipo: $('tipo').value, resumo: $('resumo').value,
+      descricao: $('descricao').value, responsavel: $('responsavel').value,
+      prioridade: $('prioridade').value, labels: $('labels').value,
+      componentes: $('componentes').value, dataLimite: $('dataLimite').value,
+      vincularA: $('vincularA').value, camposExtras: $('camposExtras').value
+    };
+  }
+
+  function mostrar(texto, classe) {
+    const m = $('msg'); m.className = classe; m.innerHTML = texto; m.style.display = 'block';
+  }
+
+  // Qualquer edição invalida a prévia: precisa revisar de novo antes de criar
+  document.querySelectorAll('input, select, textarea').forEach(el =>
+    el.addEventListener('input', () => { $('btnCriar').disabled = true; }));
+
+  function carregarTipos() {
+    const p = $('projeto').value.trim();
+    if (!p) return mostrar('Informe a chave do projeto.', 'erro');
+    mostrar('Carregando tipos de issue…', 'info');
+    google.script.run
+      .withSuccessHandler(tipos => {
+        $('tipo').innerHTML = '<option value="">— selecione —</option>' +
+          tipos.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+        mostrar(`${tipos.length} tipo(s) encontrado(s) em ${p.toUpperCase()}.`, 'ok');
+      })
+      .withFailureHandler(e => mostrar('Erro: ' + e.message, 'erro'))
+      .listarTiposIssueProjeto(p);
+  }
+
+  function carregarObrigatorios() {
+    const p = $('projeto').value.trim(), t = $('tipo').value;
+    $('boxObrig').style.display = 'none';
+    if (!p || !t) return;
+    google.script.run
+      .withSuccessHandler(campos => {
+        if (!campos.length) return;
+        $('boxObrig').innerHTML = '<div class="obrig"><b>⚠️ Campos obrigatórios deste tipo:</b><ul>' +
+          campos.map(c => `<li><b>${c.nome}</b> (<code>${c.id}</code>)` +
+            (c.opcoes.length ? ` — opções: ${c.opcoes.join(', ')}` : '') + '</li>').join('') +
+          '</ul><div class="dica">Resumo, descrição, responsável e prioridade têm campo próprio; os demais vão em "Campos extras (JSON)".</div></div>';
+        $('boxObrig').style.display = 'block';
+      })
+      .withFailureHandler(e => mostrar('Não consegui ler os campos obrigatórios: ' + e.message, 'erro'))
+      .listarCamposObrigatorios(p, t);
+  }
+
+  function gerarPrevia() {
+    google.script.run
+      .withSuccessHandler(json => {
+        $('previa').textContent = json;
+        $('boxPrevia').style.display = 'block';
+        $('btnCriar').disabled = false;
+        mostrar('Confira a prévia e clique em <b>Confirmar e criar</b>.', 'info');
+      })
+      .withFailureHandler(e => mostrar('Erro: ' + e.message, 'erro'))
+      .previsualizarIssue(coletar());
+  }
+
+  function criar() {
+    $('btnCriar').disabled = true; $('btnPrevia').disabled = true;
+    mostrar('Criando issue no Jira…', 'info');
+    google.script.run
+      .withSuccessHandler(r => {
+        mostrar(`✅ Issue criada: <a href="${r.url}" target="_blank">${r.key}</a>` +
+          (r.vinculo ? `<br>${r.vinculo}` : ''), 'ok');
+        $('btnPrevia').disabled = false;
+      })
+      .withFailureHandler(e => {
+        mostrar('❌ ' + e.message, 'erro');
+        $('btnPrevia').disabled = false;
+      })
+      .criarIssueJira(coletar());
+  }
+</script>
+</body>
+</html>
