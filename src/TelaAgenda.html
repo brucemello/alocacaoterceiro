@@ -60,6 +60,9 @@
     .sel-projeto label { font-weight:bold; font-size:12px; }
     .sel-projeto .dica { grid-column: 1 / -1; }
     .preenchido { background:#e3fcef !important; transition: background 1.2s; }
+    .feriados-opc { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; margin-top:5px; font-size:12px; }
+    .feriados-opc label { display:flex; gap:5px; align-items:center; font-weight:normal; }
+    .feriados-opc input[type=checkbox] { width:auto; }
     .titulo-box { background:#fffae6; border:1px solid #ffe380; padding:7px 10px; border-radius:4px; margin-top:8px; font-size:12px; }
   </style>
 </head>
@@ -121,7 +124,12 @@
     <div></div>
     <div class="campo vd full"><label>Não alocar nas seguintes datas</label>
       <input id="naoAlocar" placeholder="DD/MM (motivo), DD/MM (motivo)">
-      <div class="dica">Ex.: 24/12 (véspera), 31/12 (folga). Essas datas são descontadas do cálculo automático.</div></div>
+      <div class="feriados-opc">
+        <label><input type="checkbox" id="trazerFeriados" checked onchange="sincronizarFeriados()"> trazer os feriados nacionais do período</label>
+        <label><input type="checkbox" id="incluirFacultativos" onchange="sincronizarFeriados()"> incluir pontos facultativos (Carnaval, Corpus Christi)</label>
+        <button class="secundario mini" type="button" onclick="sincronizarFeriados(true)">📅 Atualizar feriados</button>
+      </div>
+      <div class="dica">Feriados que caem em dia útil entram sozinhos ao informar o período. Datas digitadas por você são mantidas. Tudo aqui é descontado do cálculo automático.</div></div>
     <div class="campo vd full"><label>Observação</label><textarea id="observacao" rows="2"></textarea></div>
   </div>
 
@@ -199,13 +207,64 @@
       i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
     return new Date(y, Math.floor((h + l - 7 * m + 114) / 31) - 1, ((h + l - 7 * m + 114) % 31) + 1);
   }
+  const FERIADOS_FIXOS = {
+    '01-01': 'Confraternização Universal', '04-21': 'Tiradentes', '05-01': 'Dia do Trabalho',
+    '09-07': 'Independência', '10-12': 'N. Sra. Aparecida', '11-02': 'Finados',
+    '11-15': 'Proclamação da República', '11-20': 'Consciência Negra', '12-25': 'Natal'
+  };
   const cacheFeriados = {};
-  function feriadosDoAno(y) {
+  /** Mapa mm-dd → nome dos feriados nacionais do ano (com os pontos facultativos marcados). */
+  function feriadosComNome(y) {
     if (cacheFeriados[y]) return cacheFeriados[y];
-    const s = new Set(['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25']);
-    const sextaSanta = pascoa(y); sextaSanta.setDate(sextaSanta.getDate() - 2);
-    s.add(mmdd(sextaSanta));
-    return (cacheFeriados[y] = s);
+    const mapa = {}, p = pascoa(y);
+    Object.keys(FERIADOS_FIXOS).forEach(k => mapa[k] = { nome: FERIADOS_FIXOS[k], facultativo: false });
+    const rel = (dias, nome, fac) => { const d = new Date(p); d.setDate(d.getDate() + dias); mapa[mmdd(d)] = { nome: nome, facultativo: fac }; };
+    rel(-2, 'Sexta-feira Santa', false);
+    rel(-48, 'Carnaval', true);
+    rel(-47, 'Carnaval', true);
+    rel(60, 'Corpus Christi', true);
+    return (cacheFeriados[y] = mapa);
+  }
+  /** Só os feriados oficiais (usados no desconto automático do cálculo). */
+  function feriadosDoAno(y) {
+    const m = feriadosComNome(y);
+    return new Set(Object.keys(m).filter(k => !m[k].facultativo));
+  }
+
+  // ---------- "Não alocar": traz os feriados do período, preservando o que foi digitado ----------
+  const MARCA_FERIADO = /^(feriado|ponto facultativo)\b/i;
+  function lerNaoAlocar() {
+    const txt = $('naoAlocar').value || '';
+    const itens = [];
+    const re = /(\d{1,2})\/(\d{1,2})(?:\/\d{2,4})?\s*(?:\(([^)]*)\))?/g;
+    let m;
+    while ((m = re.exec(txt))) itens.push({ dd: +m[1], mm: +m[2], motivo: (m[3] || '').trim() });
+    return itens;
+  }
+  function sincronizarFeriados(avisar) {
+    const de = parseData($('dataDe').value), ate = parseData($('dataAte').value);
+    const manuais = lerNaoAlocar().filter(i => !MARCA_FERIADO.test(i.motivo));
+    const chave = i => String(i.mm).padStart(2, '0') + '-' + String(i.dd).padStart(2, '0');
+    const jaTem = new Set(manuais.map(chave));
+    const auto = [];
+    if ($('trazerFeriados').checked && de && ate && ate >= de) {
+      const incluirFac = $('incluirFacultativos').checked;
+      for (let d = new Date(de); d <= ate; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() === 0 || d.getDay() === 6) continue;          // fim de semana não afeta a alocação
+        const f = feriadosComNome(d.getFullYear())[mmdd(d)];
+        if (!f || (f.facultativo && !incluirFac)) continue;
+        const item = { dd: d.getDate(), mm: d.getMonth() + 1, motivo: (f.facultativo ? 'Ponto facultativo - ' : 'Feriado - ') + f.nome, ord: d.getTime() };
+        if (!jaTem.has(chave(item))) auto.push(item);
+      }
+    }
+    // ordena tudo pela data dentro do período (manuais sem período ficam na ordem dd/mm)
+    const ordem = i => i.ord || (de ? new Date(de.getFullYear() + ((i.mm - 1) < de.getMonth() ? 1 : 0), i.mm - 1, i.dd).getTime() : i.mm * 100 + i.dd);
+    const todos = manuais.concat(auto).sort((a, b) => ordem(a) - ordem(b));
+    const fmt = i => String(i.dd).padStart(2, '0') + '/' + String(i.mm).padStart(2, '0') + (i.motivo ? ` (${i.motivo})` : '');
+    const novo = todos.map(fmt).join(', ');
+    if (novo !== $('naoAlocar').value) { $('naoAlocar').value = novo; invalidar(); marcarAlterado(); }
+    if (avisar) mostrar(auto.length ? `📅 ${auto.length} feriado(s) do período incluído(s) em "Não alocar".` : 'Nenhum feriado em dia útil dentro do período.', 'ok');
+    recalcular();
   }
 
   // ---------- inicialização ----------
@@ -297,7 +356,7 @@
       if (!doForm(e)) return;
       invalidar(); marcarAlterado();
       const f = e.target.closest('.faltando'); if (f) f.classList.remove('faltando');
-      if (['dataDe', 'dataAte'].indexOf(e.target.id) !== -1) recalcular();
+      if (['dataDe', 'dataAte'].indexOf(e.target.id) !== -1) sincronizarFeriados();
     });
     setInterval(() => { if (alterado && podeSalvar()) salvarRascunho(true); }, 120000);
   }
@@ -421,7 +480,8 @@
   // ---------- coleta ----------
   function coletar() {
     const d = { rascunhoId: rascunhoId, tipoIssueId: $('tipoIssue').value, camposProjeto: lerCamposProjeto(),
-      autoCalc: modoAuto(), descontarFeriados: $('descontarFeriados').checked };
+      autoCalc: modoAuto(), descontarFeriados: $('descontarFeriados').checked,
+      trazerFeriados: $('trazerFeriados').checked, incluirFacultativos: $('incluirFacultativos').checked };
     CAMPOS_TEXTO.forEach(id => d[id] = $(id).value);
     d.diasEspecificos = Array.from({ length: 12 }, (_, i) => document.querySelector(`[data-esp="${i}"]`).value);
     d.meses = Array.from({ length: 12 }, (_, i) => ({ mes: CFG.meses[i], dias: inp(i, 'dias').value, horas: inp(i, 'horas').value }));
@@ -438,6 +498,8 @@
     $('boxCrm').open = !!(String(d.crmEpico || '').trim() || String(d.crmSubtarefa || '').trim());
     $('autoCalc').checked = d.autoCalc !== false;
     $('descontarFeriados').checked = d.descontarFeriados !== false;
+    $('trazerFeriados').checked = d.trazerFeriados !== false;
+    $('incluirFacultativos').checked = !!d.incluirFacultativos;
     for (let i = 0; i < 12; i++) {
       const m = (d.meses || [])[i] || {};
       inp(i, 'dias').value = m.dias || ''; inp(i, 'horas').value = m.horas || '';
