@@ -80,6 +80,13 @@ Pelo link, o agente usa a planilha registrada na última vez que ela foi aberta 
 Em ⚙️ Configurações também dá para ativar **abrir o painel automaticamente ao abrir a planilha**
 (gatilho por usuário).
 
+## Atualização automática e e-mail
+
+Com a atualização automática ativa (⚙️ Configurações ou menu), o agente consulta o Jira **a cada 15 minutos**
+e envia **um e-mail** quando algo muda: status do Jira, nº da solicitação, ticket, status do ticket,
+resposta do suporte, código PSA, status de controle ou analista. Destinatários em ⚙️ Configurações
+(vazio = quem ativou). Na primeira vez, rode **📧 Enviar e-mail de teste** pelo menu para autorizar o envio.
+
 ## Uso na planilha
 
 Menu **🦇 Agente A.I.F.R.E.A.D → 🧭 Abrir Painel**.

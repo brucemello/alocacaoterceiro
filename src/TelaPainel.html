@@ -63,10 +63,16 @@
           </div>
           <div class="card">
             <h4>⏰ Atualização automática do Controle</h4>
-            <p>Atualiza status do Jira, nº de solicitação e analistas a cada 1 hora, mesmo com a planilha fechada.</p>
+            <p>Consulta o Jira <b>a cada 15 minutos</b>, mesmo com a planilha fechada, e envia um e-mail quando algo mudar
+              (status do Jira, solicitação, ticket, status do ticket, resposta do suporte, código PSA, status de controle).</p>
             <p>Situação: <span id="tagAuto" class="tag off">—</span></p>
             <div class="linha"><button class="primario" onclick="auto(true)">Ativar</button><button class="secundario" onclick="auto(false)">Desativar</button></div>
             <div class="res" id="resAuto"></div>
+            <p style="margin-top:12px"><b>📧 E-mail quando mudar</b></p>
+            <label style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="checkbox" id="notifAtivo" style="width:auto"> enviar e-mail com as mudanças</label>
+            <div class="linha"><input type="text" id="notifEmails" placeholder="destinatários separados por vírgula (vazio = você)"></div>
+            <div class="linha"><button class="primario" onclick="salvarNotif()">Salvar</button><button class="secundario" onclick="testeEmail()">Enviar e-mail de teste</button></div>
+            <div class="res" id="resNotif"></div>
           </div>
           <div class="card">
             <h4>🚀 Abrir o Controle direto</h4>
@@ -184,7 +190,12 @@
     google.script.run.withSuccessHandler(c => {
       $('cfgToken').innerHTML = c.temToken ? '<span class="ok">✔ Token configurado.</span>' : '<span class="erro">⚠️ Nenhum token configurado.</span>';
       $('tagAuto').className = 'tag ' + (c.autoAtivo ? 'on' : 'off');
-      $('tagAuto').textContent = c.autoAtivo ? 'Ativa' : 'Desativada';
+      $('tagAuto').textContent = c.autoAtivo ? `Ativa · a cada ${c.autoMinutos} min` : 'Desativada';
+      if (c.notif) {
+        $('notifAtivo').checked = c.notif.ativo;
+        $('notifEmails').value = c.notif.emails;
+        $('notifEmails').placeholder = 'vazio = ' + (c.notif.destinatarios[0] || 'você');
+      }
       $('tagAbertura').className = 'tag ' + (c.aberturaAuto ? 'on' : 'off');
       $('tagAbertura').textContent = c.aberturaAuto ? 'Ativa' : 'Desativada';
       $('urlWeb').value = c.urlWeb ? c.urlWeb + '' : '';
@@ -193,6 +204,18 @@
       $('cfgUsuario').textContent = c.usuario || '—';
       $('cfgJira').textContent = c.jiraUrl;
     }).statusConfigPainel();
+  }
+  function salvarNotif() {
+    $('resNotif').textContent = 'Salvando…';
+    google.script.run.withSuccessHandler(n => $('resNotif').innerHTML = n.ativo
+        ? `<span class="ok">✔ E-mails de mudança para: ${n.destinatarios.join(', ')}</span>` : '<span class="ok">✔ Envio de e-mail desativado.</span>')
+      .withFailureHandler(e => $('resNotif').innerHTML = `<span class="erro">${e.message}</span>`)
+      .salvarNotificacaoPainel($('notifAtivo').checked, $('notifEmails').value);
+  }
+  function testeEmail() {
+    $('resNotif').textContent = 'Enviando…';
+    google.script.run.withSuccessHandler(d => $('resNotif').innerHTML = `<span class="ok">✔ E-mail de teste enviado para ${d.join(', ')}</span>`)
+      .withFailureHandler(e => $('resNotif').innerHTML = `<span class="erro">${e.message}</span>`).enviarEmailTestePainel();
   }
   function abertura(ativar) {
     $('resAbertura').textContent = ativar ? 'Ativando…' : 'Desativando…';

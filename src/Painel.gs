@@ -154,6 +154,8 @@ function statusConfigPainel() {
     temToken: !!PropertiesService.getScriptProperties().getProperty('JIRA_TOKEN'),
     autoAtivo: autoAtualizacaoAtiva_(),
     aberturaAuto: aberturaAutomaticaAtiva_(),
+    autoMinutos: AUTO_MINUTOS,
+    notif: configNotificacao_(),
     urlWeb: urlAppWeb_(),
     usuario: Session.getActiveUser().getEmail() || '',
     jiraUrl: CONFIG.JIRA_BASE_URL
@@ -176,7 +178,7 @@ function definirAutoAtualizacaoPainel(ativar) {
   ScriptApp.getProjectTriggers()
     .filter(t => t.getHandlerFunction() === 'gatilhoAtualizarControle')
     .forEach(t => ScriptApp.deleteTrigger(t));
-  if (ativar) ScriptApp.newTrigger('gatilhoAtualizarControle').timeBased().everyHours(1).create();
+  if (ativar) criarGatilhoAuto_();
   return autoAtualizacaoAtiva_();
 }
 
@@ -185,4 +187,30 @@ function limparCacheTemplatesPainel() {
   CacheService.getScriptCache().removeAll(['PI_META_TEMPLATE', 'AG_META_TEMPLATE']);
   PropertiesService.getScriptProperties().deleteProperty('JIRA_CAMPO_EPIC_LINK');
   return true;
+}
+
+/************************************************************
+ * E-MAIL DE MUDANÇAS (Configurações)
+ ************************************************************/
+function salvarNotificacaoPainel(ativo, emails) {
+  const lista = String(emails || '').split(/[,;\s]+/).filter(Boolean);
+  const invalidos = lista.filter(e => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+  if (invalidos.length) throw new Error('E-mail inválido: ' + invalidos.join(', '));
+  const p = PropertiesService.getScriptProperties();
+  p.setProperty('NOTIF_ATIVO', ativo ? '1' : '0');
+  p.setProperty('NOTIF_EMAILS', lista.join(', '));
+  return configNotificacao_();
+}
+
+function enviarEmailTestePainel() {
+  try {
+    enviarEmailMudancas_([{ issue: 'CIBKPRTH-0000', tipo: 'Projeto Interno', projeto: 'Exemplo de projeto', analista: '',
+      mudancas: [{ campo: 'Status Ticket', de: 'Pendente', para: 'Em atendimento' }] }], true);
+  } catch (e) {
+    if (/permiss|autoriz|authoriz/i.test(e.message)) {
+      throw new Error('Falta autorizar o envio de e-mails: use o menu 🦇 Agente A.I.F.R.E.A.D → 📧 Enviar e-mail de teste (uma vez).');
+    }
+    throw e;
+  }
+  return configNotificacao_().destinatarios;
 }

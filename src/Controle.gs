@@ -265,6 +265,7 @@ function atualizarControleSilencioso_() {
   const colTk = C_CT['Nº Ticket'], colStTk = C_CT['Status Ticket'], colResp = C_CT['Última resposta'];
   const colCod = C_CT['Código Projeto (PSA)'];
   const atuais = aba.getRange(2, 1, n, COLS_CT.length).getValues();
+  const antes = aba.getRange(2, 1, n, COLS_CT.length).getDisplayValues();
 
   keys.forEach((key, idx) => {
     if (!key) return;
@@ -310,6 +311,12 @@ function atualizarControleSilencioso_() {
   });
 
   try { res.analistasVinculados = vincularAnalistasDasAgendas_(aba); } catch (e) {}
+
+  // O que mudou nesta atualização (base para o e-mail)
+  try {
+    const depois = aba.getRange(2, 1, n, COLS_CT.length).getDisplayValues();
+    res.mudancas = compararControle_(antes, depois);
+  } catch (e) { res.mudancas = []; }
   return res;
 }
 
@@ -637,13 +644,27 @@ function diagnosticarLinhaControle() {
 }
 
 /************************************************************
- * ATUALIZAÇÃO AUTOMÁTICA (opcional): a cada 1 hora
+ * ATUALIZAÇÃO AUTOMÁTICA a cada 15 min + E-MAIL QUANDO MUDAR
  ************************************************************/
+const AUTO_MINUTOS = 15;
+const CAMPOS_MONITORADOS = ['Status Jira', 'Nº Solicitação', 'Nº Ticket', 'Status Ticket', 'Última resposta',
+  'Código Projeto (PSA)', 'Status Controle', 'Analista / Recurso'];
+
+function criarGatilhoAuto_() {
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'gatilhoAtualizarControle')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('gatilhoAtualizarControle').timeBased().everyMinutes(AUTO_MINUTOS).create();
+  PropertiesService.getScriptProperties().setProperty('AUTO_FREQ', String(AUTO_MINUTOS));
+}
+
 function ativarAtualizacaoAutomaticaControle() {
-  desativarAtualizacaoAutomaticaControle(true);
-  ScriptApp.newTrigger('gatilhoAtualizarControle').timeBased().everyHours(1).create();
+  criarGatilhoAuto_();
+  const n = configNotificacao_();
   SpreadsheetApp.getUi().alert('⏰ Atualização automática ativada',
-    'O Controle será atualizado a cada 1 hora (status e nº de solicitação).', SpreadsheetApp.getUi().ButtonSet.OK);
+    `O Controle será atualizado a cada ${AUTO_MINUTOS} minutos.\n` +
+    (n.ativo ? `📧 Mudanças serão enviadas para: ${n.destinatarios.join(', ')}` : '📧 Envio de e-mail desativado.'),
+    SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
 function desativarAtualizacaoAutomaticaControle(silencioso) {
@@ -656,6 +677,128 @@ function desativarAtualizacaoAutomaticaControle(silencioso) {
 }
 
 function gatilhoAtualizarControle() {
-  try { importarDosRascunhos_(); atualizarControleSilencioso_(); }
-  catch (e) { Logger.log('Falha na atualização automática do Controle: ' + e.message); }
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;            // já há uma atualização rodando
+  try {
+    // Gatilho antigo (1 hora) passa sozinho para 15 minutos
+    if (PropertiesService.getScriptProperties().getProperty('AUTO_FREQ') !== String(AUTO_MINUTOS)) {
+      try { criarGatilhoAuto_(); } catch (e) {}
+    }
+    importarDosRascunhos_();
+    const r = atualizarControleSilencioso_();
+    if (r.mudancas && r.mudancas.length) enviarEmailMudancas_(r.mudancas);
+  } catch (e) {
+    Logger.log('Falha na atualização automática do Controle: ' + e.message);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Compara a aba antes/depois e devolve as mudanças por issue. */
+function compararControle_(antes, depois) {
+  const mapaAntes = {};
+  antes.forEach(l => { const k = String(l[C_CT['Issue'] - 1]).trim(); if (k) mapaAntes[k] = l; });
+  const lista = [];
+  depois.forEach(l => {
+    const key = String(l[C_CT['Issue'] - 1]).trim();
+    const a = mapaAntes[key];
+    if (!key || !a) return;
+    const mud = [];
+    CAMPOS_MONITORADOS.forEach(campo => {
+      const c = C_CT[campo] - 1;
+      const de = String(a[c] || '').trim(), para = String(l[c] || '').trim();
+      if (de !== para && para) mud.push({ campo: campo, de: de, para: para });
+    });
+    if (mud.length) {
+      lista.push({
+        issue: key, tipo: l[C_CT['Tipo'] - 1], projeto: l[C_CT['Projeto'] - 1],
+        analista: l[C_CT['Analista / Recurso'] - 1], mudancas: mud
+      });
+    }
+  });
+  return lista;
+}
+
+/************************************************************
+ * E-MAIL
+ ************************************************************/
+function configNotificacao_() {
+  const p = PropertiesService.getScriptProperties();
+  const lista = String(p.getProperty('NOTIF_EMAILS') || '').split(/[,;\s]+/).filter(e => /@/.test(e));
+  let padrao = '';
+  try { padrao = Session.getEffectiveUser().getEmail(); } catch (e) {}
+  return {
+    ativo: p.getProperty('NOTIF_ATIVO') !== '0',
+    emails: lista.join(', '),
+    destinatarios: lista.length ? lista : (padrao ? [padrao] : [])
+  };
+}
+
+function enviarEmailMudancas_(mudancas, teste) {
+  const cfg = configNotificacao_();
+  if (!teste && !cfg.ativo) return false;
+  if (!cfg.destinatarios.length) throw new Error('Nenhum destinatário configurado.');
+
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const destaque = { 'Status Controle': '#0052cc', 'Código Projeto (PSA)': '#00875a', 'Status Jira': '#403294', 'Status Ticket': '#b65c00' };
+  let linkPlanilha = '', linkWeb = '';
+  try { const ss = planilha_(); linkPlanilha = ss.getUrl() + '#gid=' + abaControle_().getSheetId(); } catch (e) {}
+  try { linkWeb = ScriptApp.getService().getUrl() || ''; } catch (e) {}
+
+  const blocos = mudancas.map(m => `
+    <tr><td style="padding:12px 14px;border-bottom:1px solid #dfe1e6">
+      <div style="font-size:14px"><a href="${CONFIG.JIRA_BASE_URL}/browse/${esc(m.issue)}" style="color:#0052cc;font-weight:bold;text-decoration:none">${esc(m.issue)}</a>
+        <span style="background:${m.tipo === 'Agenda' ? '#eae6ff;color:#403294' : '#deebff;color:#0747a6'};padding:2px 7px;border-radius:10px;font-size:11px;margin-left:6px">${esc(m.tipo)}</span></div>
+      <div style="color:#42526e;font-size:12px;margin:3px 0 8px">${esc(m.projeto)}${m.analista ? ' · ' + esc(m.analista) : ''}</div>
+      <table cellpadding="0" cellspacing="0" style="font-size:12px;border-collapse:collapse">
+        ${m.mudancas.map(x => `<tr>
+          <td style="padding:3px 10px 3px 0;color:#6b778c;white-space:nowrap;vertical-align:top">${esc(x.campo)}</td>
+          <td style="padding:3px 0;vertical-align:top">${x.de ? `<span style="color:#97a0af;text-decoration:line-through">${esc(x.de.length > 120 ? x.de.slice(0, 120) + '…' : x.de)}</span> → ` : ''}<b style="color:${destaque[x.campo] || '#172b4d'}">${esc(x.para)}</b></td>
+        </tr>`).join('')}
+      </table>
+    </td></tr>`).join('');
+
+  const html = `<div style="font-family:Arial,sans-serif;color:#172b4d;max-width:720px">
+    <div style="background:#1f4e78;color:#fff;padding:14px 16px;border-radius:6px 6px 0 0">
+      <div style="font-size:16px;font-weight:bold">🦇 Agente A.I.F.R.E.A.D</div>
+      <div style="font-size:12px;color:#cfe0f3">Alocação de Recurso Terceiro · ${mudancas.length} solicitação(ões) com mudança${teste ? ' · E-MAIL DE TESTE' : ''}</div>
+    </div>
+    <table cellpadding="0" cellspacing="0" style="width:100%;border:1px solid #dfe1e6;border-top:0;border-collapse:collapse">${blocos}</table>
+    <div style="font-size:12px;margin-top:12px">
+      ${linkWeb ? `<a href="${linkWeb}" style="background:#0052cc;color:#fff;padding:7px 12px;border-radius:4px;text-decoration:none;font-weight:bold">Abrir painel</a>&nbsp;&nbsp;` : ''}
+      ${linkPlanilha ? `<a href="${linkPlanilha}" style="color:#0052cc">Abrir Controle na planilha</a>` : ''}
+    </div>
+    <div style="font-size:11px;color:#6b778c;margin-top:14px">Verificação automática a cada ${AUTO_MINUTOS} minutos. Para mudar os destinatários ou parar os e-mails: Painel → ⚙️ Configurações.</div>
+  </div>`;
+
+  const texto = mudancas.map(m => `${m.issue} (${m.tipo}) - ${m.projeto}\n` +
+    m.mudancas.map(x => `  ${x.campo}: ${x.de || '—'} → ${x.para}`).join('\n')).join('\n\n');
+
+  const resumo = mudancas.length === 1
+    ? `${mudancas[0].issue}: ${mudancas[0].mudancas.map(x => x.campo + ' → ' + x.para).join(' · ')}`.substring(0, 140)
+    : `${mudancas.length} solicitações atualizadas`;
+
+  MailApp.sendEmail({
+    to: cfg.destinatarios.join(','),
+    subject: `${teste ? '[TESTE] ' : ''}🦇 A.I.F.R.E.A.D · ${resumo}`,
+    body: texto,
+    htmlBody: html,
+    name: 'Agente A.I.F.R.E.A.D'
+  });
+  return true;
+}
+
+/** Menu: e-mail de teste (também serve para autorizar o envio de e-mails). */
+function enviarEmailTesteControle() {
+  const exemplo = [{
+    issue: 'CIBKPRTH-15852', tipo: 'Projeto Interno', projeto: 'INV DEV HUB FISCAL - SQUAD NOVAS APURAÇÕES - TRIBE FISCAL - 2HY2026',
+    analista: '', mudancas: [
+      { campo: 'Status Ticket', de: '', para: 'Pendente' },
+      { campo: 'Código Projeto (PSA)', de: '', para: 'D000086713001' },
+      { campo: 'Status Controle', de: 'Solicitação aberta', para: 'Aprovado' }]
+  }];
+  enviarEmailMudancas_(exemplo, true);
+  const cfg = configNotificacao_();
+  SpreadsheetApp.getUi().alert('📧 E-mail de teste enviado', 'Enviado para: ' + cfg.destinatarios.join(', '),
+    SpreadsheetApp.getUi().ButtonSet.OK);
 }
