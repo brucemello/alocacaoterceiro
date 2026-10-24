@@ -268,11 +268,11 @@ function atualizarControleSilencioso_() {
 
   // Reforço: se a busca não trouxe o nº, lê os comentários direto da issue
   Object.keys(info).forEach(key => {
-    if (info[key].temComentarios && (info[key].numero || info[key].ticket)) return;
+    if (info[key].temComentarios && (info[key].numero || info[key].ticket || info[key].codigoPsa)) return;
     try {
       const comentarios = buscarComentariosIssue_(key);
       const it = extrairInfoIssue_({ fields: { status: { name: info[key].status }, comment: { comments: comentarios } } });
-      if (it.numero || it.ticket || it.codigoPsa) info[key] = it;
+      if (it.numero || it.ticket || it.codigoPsa || (it.ultimaResposta && !info[key].ultimaResposta)) info[key] = it;
     } catch (e) {}
   });
 
@@ -317,6 +317,12 @@ function atualizarControleSilencioso_() {
           (it.ticket && atuais[idx][colCtl - 1] === 'Aguardando solicitação')) {
         aba.getRange(linha, colCtl).setValue('Aprovado');
       }
+    }
+
+    // Concluída no Jira (ex.: agenda aprovada) → Aprovado no controle, se ainda estava no início
+    if (statusJiraConcluido_(it.status) && CONFIG_CT.AVANCA_COM_PSA.indexOf(String(atuais[idx][colCtl - 1])) !== -1) {
+      aba.getRange(linha, colCtl).setValue('Aprovado');
+      res.concluidas = (res.concluidas || 0) + 1;
     }
 
     // Cancelada no Jira → Cancelado no controle (sai das horas e do valor)
@@ -432,7 +438,23 @@ function extrairInfoIssue_(issue) {
       if (cod && !/D0000[9]{8}/.test(cod[1])) r.codigoPsa = cod[1];
     }
   }
+  // Nenhum comentário em formato conhecido: mostra o mais recente (data · autor: resumo)
+  if (!r.ultimaResposta && comentarios.length) {
+    r.ultimaResposta = resumoComentarioGenerico_(comentarios[0]);
+    r.respostaGenerica = true;
+  }
   return r;
+}
+
+function resumoComentarioGenerico_(c) {
+  const quando = c.created ? Utilities.formatDate(new Date(c.created), Session.getScriptTimeZone(), 'dd/MM HH:mm') + ' · ' : '';
+  const autor = (c.author && (c.author.displayName || c.author.name)) || '';
+  return (quando + (autor ? autor + ': ' : '') + limparTextoComentario_(c.body || '')).substring(0, 300);
+}
+
+/** Status do Jira que encerram a solicitação com sucesso. */
+function statusJiraConcluido_(st) {
+  return /conclu|resolv|fechad|finaliz|done|closed|aprovad/i.test(String(st || '')) && !/cancel|reprov|recus/i.test(String(st || ''));
 }
 
 /**
@@ -871,4 +893,36 @@ function enviarEmailTesteControle() {
   const cfg = configNotificacao_();
   SpreadsheetApp.getUi().alert('📧 E-mail de teste enviado', 'Enviado para: ' + cfg.destinatarios.join(', '),
     SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
+/** Painel: mostra os últimos comentários de uma issue e o que o agente entendeu de cada um. */
+function diagnosticarIssuePainel(key) {
+  key = String(key || '').trim().toUpperCase();
+  if (!/^[A-Z][A-Z0-9_]+-\d+$/.test(key)) throw new Error('Issue inválida.');
+  const is = chamarJiraApiCriacao_(`/rest/api/2/issue/${encodeURIComponent(key)}?fields=status,updated`, 'get');
+  const coms = buscarComentariosIssue_(key);
+  const tz = Session.getScriptTimeZone();
+  const lidos = coms.slice(-8).reverse().map(c => {
+    const corpo = String(c.body || '');
+    const achados = [];
+    const t = corpo.match(CONFIG_CT.REGEX_TICKET);
+    if (t) achados.push('ticket #' + t[1]);
+    else { const m = corpo.match(CONFIG_CT.REGEX_SOLICITACAO); if (m) achados.push('Fluig #' + m[1]); }
+    const cod = /projeto/i.test(corpo) && corpo.match(CONFIG_CT.REGEX_COD_PSA);
+    if (cod) achados.push('código PSA ' + cod[1]);
+    return {
+      quando: c.created ? Utilities.formatDate(new Date(c.created), tz, 'dd/MM/yyyy HH:mm') : '',
+      autor: (c.author && (c.author.displayName || c.author.name)) || '',
+      texto: limparTextoComentario_(corpo).substring(0, 600), achados: achados
+    };
+  });
+  const it = extrairInfoIssue_({ fields: { status: is.fields.status, comment: { comments: coms } } });
+  return {
+    issue: key, status: (is.fields.status && is.fields.status.name) || '', atualizadaEm: is.fields.updated ?
+      Utilities.formatDate(new Date(is.fields.updated), tz, 'dd/MM/yyyy HH:mm') : '',
+    totalComentarios: coms.length, comentarios: lidos,
+    resultado: { numero: it.numero, ticket: it.ticket, statusTicket: it.statusTicket, codigoPsa: it.codigoPsa,
+      ultimaResposta: it.ultimaResposta, generica: !!it.respostaGenerica, concluida: statusJiraConcluido_(it.status) },
+    jiraUrl: CONFIG.JIRA_BASE_URL
+  };
 }

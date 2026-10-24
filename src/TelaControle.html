@@ -63,6 +63,14 @@
     .imp { display:none; gap:8px; align-items:center; background:#f4f5f7; padding:8px 10px; border-radius:4px; margin-bottom:10px; }
     .imp.on { display:flex; } .imp input { flex:1; }
     .rodape { color:var(--cinza); font-size:11px; margin-top:6px; display:flex; justify-content:space-between; }
+    .diag-fundo { position:fixed; inset:0; background:rgba(9,30,66,.45); z-index:40; display:flex; align-items:flex-start; justify-content:center; padding:30px 12px; }
+    .diag { background:#fff; border-radius:8px; width:min(860px,100%); max-height:calc(100vh - 60px); overflow:auto; padding:16px 18px; box-shadow:0 8px 28px rgba(9,30,66,.35); }
+    .diag h3 { margin:0 0 6px; color:var(--azul); font-size:15px; }
+    .diag .res { display:grid; grid-template-columns: 150px 1fr; gap:3px 10px; font-size:12px; background:#f4f5f7; border-radius:4px; padding:8px 10px; margin:8px 0; }
+    .diag .com { border-left:3px solid #dfe1e6; padding:6px 10px; margin:6px 0; font-size:12px; }
+    .diag .com.lido { border-left-color:#36b37e; }
+    .diag .com .cab { color:#6b778c; font-size:11px; margin-bottom:3px; }
+    .diag .tag-l { display:inline-block; background:#e3fcef; color:#006644; border-radius:9px; padding:0 7px; font-size:11px; margin-left:4px; }
   </style>
 </head>
 <body>
@@ -309,6 +317,7 @@
         .map(s => `<option${s === l.statusControle ? ' selected' : ''}>${esc(s)}</option>`).join('');
       return `<tr class="${cancelada(l) ? 'cancelado' : ''}">
         <td style="white-space:nowrap">${l.tipo === 'Agenda' && !cancelada(l) ? `<button class="secundario mini" title="Editar esta agenda e atualizar a issue" onclick="editarAgenda('${esc(l.issue)}')">✏️</button>` : ''}
+          <button class="secundario mini" title="Ver os comentários do Jira e o que o agente leu" onclick="diagnosticar('${esc(l.issue)}')">🔍</button>
           ${l.tipo === 'Agenda' || l.tipo === 'Projeto Interno' ? `<button class="secundario mini" title="Clonar: nova solicitação aproveitando os dados (muda período, recursos, dias e valor)" onclick="clonar('${esc(l.issue)}','${l.tipo === 'Agenda' ? 'agenda' : 'projeto'}')">📄</button>` : ''}</td>
         <td><span class="tipo ${cls}">${esc(l.tipo)}</span></td>
         <td><a href="${url}">${esc(l.issue)}</a><div class="sub">${esc(l.solicitante)}</div></td>
@@ -370,6 +379,9 @@
       if (r.analistasVinculados) partes.push(`👤 ${r.analistasVinculados} projeto(s) com analistas das agendas`);
       if (r.novosTickets) partes.push(`🎫 ${r.novosTickets} ticket(s) novo(s) do suporte`);
       if (r.codigosPsa) partes.push(`✅ ${r.codigosPsa} projeto(s) com código PSA preenchido`);
+      if (r.concluidas) partes.push(`✅ ${r.concluidas} concluída(s) no Jira → Aprovado`);
+      if (r.mudancas && r.mudancas.length) partes.push(`✏️ ${r.mudancas.length} issue(s) com mudança: ${r.mudancas.map(m => m.issue).join(', ')}`);
+      else partes.push('sem mudanças desde a última atualização (use 🔍 na linha para ver os comentários)');
       if (r.canceladas) partes.push(`🚫 ${r.canceladas} marcada(s) como Cancelado (cancelada no Jira)`);
       if (r.importados) partes.push(`${r.importados} importada(s) dos rascunhos`);
       if (r.erros && r.erros.length) partes.push(`⚠️ não encontradas: ${r.erros.join(', ')}`);
@@ -400,6 +412,31 @@
   $('entradaImp').addEventListener('keydown', e => { if (e.key === 'Enter') importar(); });
 
   carregar();
+
+  // ---------- 🔍 diagnóstico: comentários do Jira e o que foi lido ----------
+  function diagnosticar(key) {
+    fecharDiag();
+    document.body.insertAdjacentHTML('beforeend', `<div class="diag-fundo" id="diagFundo" onclick="if(event.target===this)fecharDiag()">
+      <div class="diag"><h3>🔍 ${esc(key)}</h3><div id="diagCorpo">Consultando o Jira…</div></div></div>`);
+    google.script.run.withSuccessHandler(d => {
+      const r = d.resultado;
+      const lin = (k, v) => `<b>${k}</b><span>${v ? linkificar(v) : '<span style="color:#6b778c">—</span>'}</span>`;
+      $('diagCorpo').innerHTML = `
+        <div>Status no Jira: <b>${esc(d.status)}</b> · atualizada em ${esc(d.atualizadaEm)} · ${d.totalComentarios} comentário(s)
+          · <a href="${esc(d.jiraUrl)}/browse/${esc(d.issue)}">abrir no Jira</a></div>
+        <div class="res">${lin('Nº solicitação (Fluig)', r.numero)}${lin('Nº ticket', r.ticket)}${lin('Status ticket', r.statusTicket)}
+          ${lin('Código PSA', r.codigoPsa)}${lin('Última resposta', r.ultimaResposta + (r.generica ? '  (comentário mais recente, sem formato conhecido)' : ''))}
+          ${lin('Status Controle', r.concluida ? 'vai para Aprovado (concluída no Jira)' : '')}</div>
+        <b style="font-size:12px">Últimos comentários (mais recente primeiro)</b>
+        ${d.comentarios.length ? d.comentarios.map(c => `<div class="com${c.achados.length ? ' lido' : ''}">
+            <div class="cab">${esc(c.quando)} · ${esc(c.autor)}${c.achados.map(a => `<span class="tag-l">${esc(a)}</span>`).join('')}</div>
+            ${linkificar(c.texto)}</div>`).join('') : '<div class="com">Nenhum comentário na issue.</div>'}
+        <div class="linha" style="margin-top:10px"><button class="secundario" onclick="fecharDiag()">Fechar</button></div>`;
+    }).withFailureHandler(e => { $('diagCorpo').innerHTML = `<span style="color:#bf2600">❌ ${esc(e.message)}</span>`; })
+      .diagnosticarIssuePainel(key);
+  }
+  function fecharDiag() { const f = $('diagFundo'); if (f) f.remove(); }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharDiag(); });
 </script>
 </body>
 </html>
