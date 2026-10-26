@@ -100,12 +100,14 @@ function dadosAvisoInicio_(key) {
   let ag = {};
   try { ag = carregarAgendaParaEdicao(key).dados || {}; } catch (e) { ag = {}; }
   const p = perfil_();
-  const cons = acharConsultoria_(ag.consultoria);
+  const nomeCons = linha.consultoria || ag.consultoria || '';     // associação no Controle vale mais que a descrição
+  const cons = acharConsultoria_(nomeCons);
   return {
     issue: key, url: CONFIG.JIRA_BASE_URL + '/browse/' + key,
     recurso: ag.nomeRecurso || linha.analista, email: String(ag.email || '').trim().toLowerCase(),
     codigoRecurso: ag.codigoRecurso || '', papel: ag.papel || '',
-    consultoria: ag.consultoria || '', consultoriaCadastrada: cons ? cons.nome : '',
+    consultoria: cons ? cons.nome : nomeCons, consultoriaAgenda: ag.consultoria || '', consultoriaCadastrada: cons ? cons.nome : '',
+    consultorias: consultorias_().map(c => ({ nome: c.nome, emails: c.emails })),
     emailsConsultoria: cons ? cons.emails : [],
     codigoProjeto: ag.codigoProjeto || linha.codigoPsa, projeto: ag.nomeProjeto || linha.projeto,
     squad: ag.squad || linha.squad, de: linha.de, ate: linha.ate,
@@ -124,6 +126,10 @@ function nomeDoEmail_(e) {
 function prepararAvisoInicioPainel(key, opcoes) {
   const d = dadosAvisoInicio_(key);
   const o = opcoes || {};
+  if (o.consultoria !== undefined) {             // escolhida no comunicado
+    const c = consultorias_().find(x => x.nome === o.consultoria);
+    d.consultoria = o.consultoria; d.consultoriaCadastrada = c ? c.nome : ''; d.emailsConsultoria = c ? c.emails : [];
+  }
   const primeiroNome = String(d.recurso || '').split(/\s+/)[0] || '';
   return {
     dados: d,
@@ -171,7 +177,9 @@ function enviarAvisoInicioPainel(dados) {
   const para = listaEmails_((dados.para || []).join(','));
   const cc = listaEmails_((dados.cc || []).join(',')).filter(e => para.indexOf(e) === -1);
   if (!para.length && !cc.length) throw new Error('Informe ao menos um destinatário.');
-  const prev = prepararAvisoInicioPainel(dados.issue, { mensagem: dados.mensagem, valorHora: dados.valorHora });
+  const op = { mensagem: dados.mensagem, valorHora: dados.valorHora };
+  if (dados.consultoria !== undefined) op.consultoria = dados.consultoria;
+  const prev = prepararAvisoInicioPainel(dados.issue, op);
   const d = prev.dados;
 
   // Consultoria sem cadastro: guarda os e-mails informados (sem o analista e sem o próprio TL)
@@ -195,6 +203,7 @@ function enviarAvisoInicioPainel(dados) {
   const registro = `${quando} · ${para.concat(cc).join(', ')}`;
   if (linha) {
     aba.getRange(linha, C_CT['Aviso de início']).setValue(registro);
+    if (d.consultoria) aba.getRange(linha, C_CT['Consultoria']).setValue(d.consultoria);
     const st = String(aba.getRange(linha, C_CT['Status Controle']).getValue());
     if (['Encerrado', 'Cancelado', 'Em andamento'].indexOf(st) === -1) {
       aba.getRange(linha, C_CT['Status Controle']).setValue(CONFIG_AV.STATUS_APOS_AVISO);
@@ -202,4 +211,13 @@ function enviarAvisoInicioPainel(dados) {
     aba.getRange(linha, C_CT['Última atualização']).setValue(new Date());
   }
   return { registro: registro, status: CONFIG_AV.STATUS_APOS_AVISO };
+}
+
+/** Associa (ou troca) a consultoria de uma agenda no Controle. */
+function associarConsultoriaAgenda(key, nome) {
+  const aba = abaControle_();
+  const linha = linhaControlePorIssue_(aba, String(key || '').trim().toUpperCase());
+  if (!linha) throw new Error('Agenda não encontrada no Controle.');
+  aba.getRange(linha, C_CT['Consultoria']).setValue(String(nome || '').trim());
+  return true;
 }

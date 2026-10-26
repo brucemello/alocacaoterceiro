@@ -68,7 +68,8 @@ function obterConfigAgenda() {
     template: CONFIG_AG.ISSUE_TEMPLATE,
     jiraUrl: CONFIG.JIRA_BASE_URL,
     meses: CONFIG_PI.MESES,
-    metaPendente: !meta
+    metaPendente: !meta,
+    consultorias: (function () { try { return consultorias_().map(c => c.nome); } catch (e) { return []; } })()
   };
 }
 

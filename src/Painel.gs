@@ -114,7 +114,7 @@ function obterLinhasControle_() {
       statusControle: g('Status Controle'), obs: g('Observações'), atualizado: g('Última atualização'),
       ticket: g('Nº Ticket'), statusTicket: g('Status Ticket'), ultimaResposta: g('Última resposta'),
       linkTicket: (String(formsTk[i][0] || '').match(/HYPERLINK\("([^"]+)"/) || [])[1] || '',
-      time: g('Time'), avisoInicio: g('Aviso de início')
+      time: g('Time'), avisoInicio: g('Aviso de início'), consultoria: g('Consultoria')
     };
   }).filter(l => l.issue);
   return base.linhas;

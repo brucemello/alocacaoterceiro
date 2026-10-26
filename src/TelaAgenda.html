@@ -144,7 +144,7 @@
     <div class="campo az"><label>Nome Completo do Recurso <span style="font-weight:normal;color:#6b778c">(vai para o título)</span></label><input id="nomeRecurso"></div>
     <div class="campo az"><label>Código do Projeto (PSA) <span style="font-weight:normal;color:#6b778c">(vai para o título)</span></label><input id="codigoProjeto" list="dlCodigos" placeholder="D000099999999" style="text-transform:uppercase" autocomplete="off"></div>
     <div class="campo az"><label>Nome do Projeto (PSA)</label><input id="nomeProjeto" list="dlNomes" autocomplete="off"></div>
-    <div class="campo vd"><label>Nome da Consultoria <span style="font-weight:normal;color:#6b778c">(para consultores externos)</span></label><input id="consultoria"></div>
+    <div class="campo vd"><label>Nome da Consultoria <span style="font-weight:normal;color:#6b778c">(para consultores externos)</span></label><input id="consultoria" list="dlConsultorias" placeholder="Escolha uma consultoria cadastrada ou digite"><datalist id="dlConsultorias"></datalist></div>
     <div class="campo az"><label>Nome do SQUAD onde o recurso estará alocado</label><input id="squad" list="dlSquads" autocomplete="off"></div>
     <div class="campo vd"><label>Valor hora negociado da alocação (R$)</label><input id="valorHora" inputmode="decimal" placeholder="999,99">
       <div class="dica">Obrigatório para Consultores Externos. Usado no cálculo do Valor Total.</div></div>
@@ -365,6 +365,7 @@
       const p = Object.values(PROJETOS).find(x => x.nome.toLowerCase() === $('nomeProjeto').value.trim().toLowerCase());
       if (p && !$('codigoProjeto').value.trim()) aplicarProjeto(p, true);
     });
+    $('dlConsultorias').innerHTML = (cfg.consultorias || []).map(n => `<option value="${escHtml(n)}">`).join('');
     // Template (épico/prioridade) em segundo plano: o formulário não espera o Jira
     if (cfg.metaPendente) {
       google.script.run.withSuccessHandler(m => {

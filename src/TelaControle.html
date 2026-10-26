@@ -330,7 +330,7 @@
         <td><a href="${url}">${esc(l.issue)}</a><div class="sub">${esc(l.solicitante)}</div></td>
         <td>${esc(l.abertaEm.split(' ')[0])}</td>
         <td style="min-width:260px">${esc(l.projeto)}<div class="sub">${esc(l.squad)}</div></td>
-        <td style="min-width:200px"><input data-i="${esc(l.issue)}" data-c="Analista / Recurso" value="${esc(l.analista)}"></td>
+        <td style="min-width:200px"><input data-i="${esc(l.issue)}" data-c="Analista / Recurso" value="${esc(l.analista)}">${l.consultoria ? `<div class="sub">🏢 ${esc(l.consultoria)}</div>` : ''}</td>
         <td style="min-width:130px"><input data-i="${esc(l.issue)}" data-c="Código Projeto (PSA)" value="${esc(l.codigoPsa)}"></td>
         <td style="white-space:nowrap">${esc(l.de)}${l.ate ? ' → ' + esc(l.ate) : ''}</td>
         <td class="num">${l.valorHora ? fmtMoeda(l.valorHora) : ''}</td>
@@ -463,8 +463,15 @@
       $('diagCorpo').innerHTML = `
         ${d.avisoAnterior ? `<div class="av-aviso alerta">Já enviado em ${esc(d.avisoAnterior)}. Enviar de novo?</div>` : ''}
         ${!d.email ? '<div class="av-aviso alerta">A agenda não tem o e-mail do analista: informe em <b>Para</b>.</div>' : ''}
-        ${consMsg}
+        <div id="avConsMsg">${consMsg}</div>
         <div class="av-grid">
+          <label>Consultoria</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="avCons" style="flex:1;min-width:240px;padding:6px;border:1px solid #c1c7d0;border-radius:4px;font-size:12px">
+              <option value="">— sem consultoria —</option>
+              ${d.consultorias.map(c => `<option value="${esc(c.nome)}"${c.nome === d.consultoriaCadastrada ? ' selected' : ''}>${esc(c.nome)}${c.emails.length ? ' · ' + esc(c.emails.join(', ')) : ''}</option>`).join('')}
+              ${d.consultoria && !d.consultoriaCadastrada ? `<option value="${esc(d.consultoria)}" selected>${esc(d.consultoria)} (sem cadastro)</option>` : ''}
+            </select>
+            <span class="sub">${d.consultoriaAgenda && d.consultoriaAgenda !== d.consultoria ? 'na agenda: ' + esc(d.consultoriaAgenda) : ''}</span></div>
           <label>Para</label><input id="avPara" value="${esc(r.para.join(', '))}" placeholder="e-mail do analista">
           <label>Cc</label><input id="avCc" value="${esc(r.cc.join(', '))}" placeholder="e-mails da consultoria">
           <label>Assunto</label><input id="avAssunto" value="${esc(r.assunto)}">
@@ -482,6 +489,8 @@
           <span class="sub">Depois do envio, o Status Controle vira <b>Início comunicado</b>.</span>
         </div>`;
       $('avPrev').srcdoc = r.html;
+      AV.consEmails = (d.emailsConsultoria || []).slice();
+      $('avCons').addEventListener('change', trocarConsultoria);
       ['avMsg', 'avValor'].forEach(id => $(id).addEventListener('input', previaAviso));
       $('avValor').addEventListener('change', previaAviso);
     }).withFailureHandler(e => { $('diagCorpo').innerHTML = `<span style="color:#bf2600">❌ ${esc(e.message)}</span>`; })
@@ -490,7 +499,18 @@
   function previaAviso() {
     clearTimeout(avTimer);
     avTimer = setTimeout(() => google.script.run.withSuccessHandler(r => { if ($('avPrev')) $('avPrev').srcdoc = r.html; })
-      .prepararAvisoInicioPainel(AV.key, { mensagem: $('avMsg').value, valorHora: $('avValor').checked }), 500);
+      .prepararAvisoInicioPainel(AV.key, { mensagem: $('avMsg').value, valorHora: $('avValor').checked, consultoria: $('avCons').value }), 500);
+  }
+  /** Troca a consultoria: tira do Cc os e-mails da anterior e coloca os da nova. */
+  function trocarConsultoria() {
+    const c = (AV.dados.consultorias || []).find(x => x.nome === $('avCons').value);
+    const novos = c ? c.emails : [];
+    const atuais = $('avCc').value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean).filter(x => AV.consEmails.indexOf(x.toLowerCase()) === -1);
+    $('avCc').value = novos.concat(atuais).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+    AV.consEmails = novos.map(x => x.toLowerCase());
+    $('avConsMsg').innerHTML = c ? `<div class="av-aviso ok">🏢 Consultoria <b>${esc(c.nome)}</b>: ${esc(c.emails.join(', ') || 'sem e-mail cadastrado')} · fica associada a esta agenda no envio</div>` : '';
+    const sv = $('avSalvarCons'); if (sv) sv.parentNode.style.display = c ? 'none' : '';
+    previaAviso();
   }
   function enviarAviso() {
     const lista = id => $(id).value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
@@ -503,7 +523,7 @@
       carregar(true);
     }).withFailureHandler(e => { $('avEnviar').disabled = false; $('avEnviar').textContent = '📧 Enviar aviso'; alertaAviso(e.message); })
       .enviarAvisoInicioPainel({ issue: AV.key, para: para, cc: cc, assunto: $('avAssunto').value, mensagem: $('avMsg').value,
-        valorHora: $('avValor').checked, salvarConsultoria: !!($('avSalvarCons') && $('avSalvarCons').checked) });
+        valorHora: $('avValor').checked, consultoria: $('avCons').value, salvarConsultoria: !!($('avSalvarCons') && $('avSalvarCons').checked) });
   }
   function alertaAviso(msg) {
     const box = document.createElement('div'); box.className = 'av-aviso alerta'; box.textContent = '❌ ' + msg;

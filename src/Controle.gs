@@ -26,7 +26,7 @@ const COLS_CT = [
   'Tipo', 'Issue', 'Aberta em', 'Solicitante', 'Código Projeto (PSA)', 'Projeto', 'Analista / Recurso',
   'Squad', 'Período De', 'Período Até', 'Valor Hora (R$)', 'Dias', 'Horas', 'Valor Total (R$)',
   'Status Jira', 'Nº Solicitação', 'Link Solicitação', 'Status Controle', 'Observações', 'Última atualização',
-  'Nº Ticket', 'Status Ticket', 'Última resposta', 'Time', 'Aviso de início'
+  'Nº Ticket', 'Status Ticket', 'Última resposta', 'Time', 'Aviso de início', 'Consultoria'
 ];
 const C_CT = {}; COLS_CT.forEach((n, i) => C_CT[n] = i + 1);
 

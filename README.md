@@ -122,7 +122,9 @@ projeto PSA, squad, período, dias/horas, datas sem alocação, líder, link da 
 **apontamento no Fluig** (`CONFIG_AV.URL_APONTAMENTO`). Dá para editar destinatários, assunto, incluir valor hora e
 uma mensagem extra, com prévia. Depois do envio: Status Controle = **Início comunicado** e coluna **Aviso de início**
 com data e destinatários. Os e-mails das consultorias ficam na aba **Consultorias** (⚙️ Configurações → 🏢 Consultorias);
-na primeira vez, o próprio aviso pode salvar o e-mail informado.
+na primeira vez, o próprio aviso pode salvar o e-mail informado. No aviso dá para **escolher a consultoria** do cadastro
+(troca os e-mails do Cc); no envio ela fica **associada à agenda** (coluna `Consultoria` do Controle). No formulário da Agenda,
+o campo *Nome da Consultoria* sugere as consultorias cadastradas.
 
 ## Credenciais do terceiro
 
