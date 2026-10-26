@@ -102,6 +102,18 @@
             <div class="res" id="resToken"></div>
             <p style="font-size:11px;color:#6b778c">Fica guardado só para você (ninguém mais vê). As issues que você criar saem no seu nome no Jira.</p>
           </div>
+          <div class="card" id="cardConsultorias" style="grid-column:1/-1">
+            <h4>🏢 Consultorias (e-mails para o aviso de início)</h4>
+            <p>Quem recebe o e-mail <b>📧 Avisar início</b> da agenda junto com o analista. Vale para todos os times.</p>
+            <table class="membros"><thead><tr><th>Consultoria</th><th>E-mails para avisos</th><th>Contato</th><th>Atualizado</th><th></th></tr></thead>
+              <tbody id="tbCons"></tbody>
+              <tfoot><tr>
+                <td><input id="csNome" placeholder="Ex.: NEXPERTI CONSULTORIA EM INFORMATICA LTDA"></td>
+                <td><input id="csEmails" placeholder="contato@consultoria.com.br, rh@…"></td>
+                <td><input id="csContato" placeholder="Nome / telefone (opcional)"></td>
+                <td></td><td><button class="primario" onclick="salvarCons()">Adicionar / salvar</button></td></tr></tfoot></table>
+            <div class="res" id="resCons"></div>
+          </div>
           <div class="card" id="cardAdmin" style="display:none;grid-column:1/-1">
             <h4>👥 Times e membros <span class="tag on">Admin</span></h4>
             <table class="membros"><thead><tr><th>E-mail</th><th>Nome</th><th>Time</th><th>Papel</th><th>E-mails extras</th><th></th></tr></thead>
@@ -115,18 +127,6 @@
             <div class="res" id="resMembros"></div>
             <p style="margin-top:12px"><b>Token do sistema</b> (usado pelas rotinas automáticas e por quem ainda não salvou o próprio): <span id="tokSistema">—</span></p>
             <div class="linha"><input type="password" id="tokenSistema" placeholder="PAT para as rotinas automáticas"><button class="secundario" onclick="salvarTokenSistema()">Salvar token do sistema</button></div>
-          </div>
-          <div class="card" id="cardConsultorias" style="grid-column:1/-1">
-            <h4>🏢 Consultorias (e-mails para o aviso de início)</h4>
-            <p>Quem recebe o e-mail <b>📧 Avisar início</b> da agenda junto com o analista. Vale para todos os times.</p>
-            <table class="membros"><thead><tr><th>Consultoria</th><th>E-mails para avisos</th><th>Contato</th><th>Atualizado</th><th></th></tr></thead>
-              <tbody id="tbCons"></tbody>
-              <tfoot><tr>
-                <td><input id="csNome" placeholder="Ex.: NEXPERTI CONSULTORIA EM INFORMATICA LTDA"></td>
-                <td><input id="csEmails" placeholder="contato@consultoria.com.br, rh@…"></td>
-                <td><input id="csContato" placeholder="Nome / telefone (opcional)"></td>
-                <td></td><td><button class="primario" onclick="salvarCons()">Adicionar / salvar</button></td></tr></tfoot></table>
-            <div class="res" id="resCons"></div>
           </div>
           <div class="card">
             <h4>⏰ Atualização automática do Controle</h4>
