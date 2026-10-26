@@ -114,6 +114,16 @@ A mesma planilha atende vários times. A aba **`Times`** guarda e-mail, nome, ti
 **Novo TL:** precisa de acesso de Editor à planilha. Ele abre o painel, vai em ⚙️ Configurações, salva o perfil
 (nome + time) e o próprio token, e testa a conexão.
 
+## Aviso de início da agenda
+
+No Controle, cada Agenda tem o botão **📧 Avisar início** (azul quando a agenda está Aprovada e ainda não foi avisada).
+Ele monta um e-mail para o **analista** (e-mail da agenda) com cópia para a **consultoria** e para o TL, com recurso,
+projeto PSA, squad, período, dias/horas, datas sem alocação, líder, link da issue e o botão de
+**apontamento no Fluig** (`CONFIG_AV.URL_APONTAMENTO`). Dá para editar destinatários, assunto, incluir valor hora e
+uma mensagem extra, com prévia. Depois do envio: Status Controle = **Início comunicado** e coluna **Aviso de início**
+com data e destinatários. Os e-mails das consultorias ficam na aba **Consultorias** (⚙️ Configurações → 🏢 Consultorias);
+na primeira vez, o próprio aviso pode salvar o e-mail informado.
+
 ## Credenciais do terceiro
 
 Na solicitação de acesso, o passo **5 · Credenciais geradas no Horacius** guarda o que o Horacius gera

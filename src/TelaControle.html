@@ -63,6 +63,12 @@
     .imp { display:none; gap:8px; align-items:center; background:#f4f5f7; padding:8px 10px; border-radius:4px; margin-bottom:10px; }
     .imp.on { display:flex; } .imp input { flex:1; }
     .rodape { color:var(--cinza); font-size:11px; margin-top:6px; display:flex; justify-content:space-between; }
+    .av-grid { display:grid; grid-template-columns: 110px 1fr; gap:6px 10px; align-items:center; font-size:12px; margin:8px 0; }
+    .av-grid label { font-weight:bold; color:#42526e; }
+    .av-grid input, .av-grid textarea { width:100%; padding:6px 7px; border:1px solid #c1c7d0; border-radius:4px; font-size:12px; font-family:inherit; box-sizing:border-box; }
+    .av-aviso { font-size:12px; border-radius:4px; padding:6px 10px; margin:6px 0; }
+    .av-aviso.ok { background:#e3fcef; color:#006644; } .av-aviso.alerta { background:#fff7e6; color:#974f0c; border:1px solid #ffe2b3; }
+    .av-prev { width:100%; height:380px; border:1px solid #dfe1e6; border-radius:4px; background:#fff; }
     .diag-fundo { position:fixed; inset:0; background:rgba(9,30,66,.45); z-index:40; display:flex; align-items:flex-start; justify-content:center; padding:30px 12px; }
     .diag { background:#fff; border-radius:8px; width:min(860px,100%); max-height:calc(100vh - 60px); overflow:auto; padding:16px 18px; box-shadow:0 8px 28px rgba(9,30,66,.35); }
     .diag h3 { margin:0 0 6px; color:var(--azul); font-size:15px; }
@@ -317,6 +323,7 @@
         .map(s => `<option${s === l.statusControle ? ' selected' : ''}>${esc(s)}</option>`).join('');
       return `<tr class="${cancelada(l) ? 'cancelado' : ''}">
         <td style="white-space:nowrap">${l.tipo === 'Agenda' && !cancelada(l) ? `<button class="secundario mini" title="Editar esta agenda e atualizar a issue" onclick="editarAgenda('${esc(l.issue)}')">✏️</button>` : ''}
+          ${l.tipo === 'Agenda' && !cancelada(l) ? `<button class="${l.statusControle === 'Aprovado' && !l.avisoInicio ? 'primario' : 'secundario'} mini" title="${l.avisoInicio ? 'Início já avisado em ' + esc(l.avisoInicio.split(' · ')[0]) + ' — reenviar' : 'Avisar o analista e a consultoria que a agenda foi criada'}" onclick="avisarInicio('${esc(l.issue)}')">📧</button>` : ''}
           <button class="secundario mini" title="Ver os comentários do Jira e o que o agente leu" onclick="diagnosticar('${esc(l.issue)}')">🔍</button>
           ${l.tipo === 'Agenda' || l.tipo === 'Projeto Interno' ? `<button class="secundario mini" title="Clonar: nova solicitação aproveitando os dados (muda período, recursos, dias e valor)" onclick="clonar('${esc(l.issue)}','${l.tipo === 'Agenda' ? 'agenda' : 'projeto'}')">📄</button>` : ''}</td>
         <td><span class="tipo ${cls}">${esc(l.tipo)}</span></td>
@@ -333,7 +340,9 @@
         <td style="white-space:nowrap">${l.numSolic ? (l.linkSolic ? `<a href="${esc(l.linkSolic)}">#${esc(l.numSolic)}</a>` : '#' + esc(l.numSolic)) : '<span class="sub">—</span>'}
           ${l.ticket ? `<div class="sub">🎫 ${l.linkTicket ? `<a href="${esc(l.linkTicket)}">#${esc(l.ticket)}</a>` : '#' + esc(l.ticket)}${l.statusTicket ? ' · <b>' + esc(l.statusTicket) + '</b>' : ''}</div>` : ''}</td>
         <td style="min-width:260px;max-width:360px">${l.ultimaResposta ? `<span title="${esc(l.ultimaResposta)}">${linkificar(l.ultimaResposta)}</span>` : '<span class="sub">—</span>'}</td>
-        <td style="min-width:170px"><select data-i="${esc(l.issue)}" data-c="Status Controle">${statusOpts}</select></td>
+        <td style="min-width:170px"><select data-i="${esc(l.issue)}" data-c="Status Controle">${statusOpts}</select>
+          ${l.avisoInicio ? `<div class="sub" title="${esc(l.avisoInicio)}">📧 início avisado ${esc(l.avisoInicio.split(' · ')[0])}</div>`
+            : (l.tipo === 'Agenda' && l.statusControle === 'Aprovado' ? `<div class="sub" style="color:#b65c00">📧 falta avisar o início</div>` : '')}</td>
         <td style="min-width:200px"><input data-i="${esc(l.issue)}" data-c="Observações" value="${esc(l.obs)}"></td>
       </tr>`;
     }).join('');
@@ -437,6 +446,69 @@
   }
   function fecharDiag() { const f = $('diagFundo'); if (f) f.remove(); }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharDiag(); });
+
+  // ---------- 📧 aviso de início da agenda (analista + consultoria) ----------
+  let AV = null, avTimer = null;
+  function avisarInicio(key) {
+    fecharDiag();
+    document.body.insertAdjacentHTML('beforeend', `<div class="diag-fundo" id="diagFundo" onclick="if(event.target===this)fecharDiag()">
+      <div class="diag"><h3>📧 Avisar início · ${esc(key)}</h3><div id="diagCorpo">Montando o e-mail com os dados da agenda…</div></div></div>`);
+    google.script.run.withSuccessHandler(r => {
+      AV = { key: key, dados: r.dados };
+      const d = r.dados;
+      const consMsg = d.consultoriaCadastrada
+        ? `<div class="av-aviso ok">🏢 Consultoria <b>${esc(d.consultoriaCadastrada)}</b> cadastrada: ${esc(d.emailsConsultoria.join(', '))}</div>`
+        : `<div class="av-aviso alerta">🏢 ${d.consultoria ? `A consultoria <b>${esc(d.consultoria)}</b> ainda não tem e-mail cadastrado.` : 'A agenda não informa a consultoria.'}
+            Coloque o e-mail dela em <b>Cc</b>${d.consultoria ? ` e deixe marcado “salvar no cadastro”` : ''}.</div>`;
+      $('diagCorpo').innerHTML = `
+        ${d.avisoAnterior ? `<div class="av-aviso alerta">Já enviado em ${esc(d.avisoAnterior)}. Enviar de novo?</div>` : ''}
+        ${!d.email ? '<div class="av-aviso alerta">A agenda não tem o e-mail do analista: informe em <b>Para</b>.</div>' : ''}
+        ${consMsg}
+        <div class="av-grid">
+          <label>Para</label><input id="avPara" value="${esc(r.para.join(', '))}" placeholder="e-mail do analista">
+          <label>Cc</label><input id="avCc" value="${esc(r.cc.join(', '))}" placeholder="e-mails da consultoria">
+          <label>Assunto</label><input id="avAssunto" value="${esc(r.assunto)}">
+          <label>Mensagem extra</label><textarea id="avMsg" rows="2" placeholder="Opcional: orientações de início, reunião de kickoff, acessos…"></textarea>
+          <span></span><div style="display:flex;gap:16px;flex-wrap:wrap">
+            <label style="font-weight:normal;display:flex;gap:5px;align-items:center"><input type="checkbox" id="avValor" style="width:auto"> incluir valor hora</label>
+            ${!d.consultoriaCadastrada && d.consultoria ? `<label style="font-weight:normal;display:flex;gap:5px;align-items:center"><input type="checkbox" id="avSalvarCons" checked style="width:auto"> salvar os e-mails do Cc no cadastro da consultoria</label>` : ''}
+          </div>
+        </div>
+        <b style="font-size:12px">Prévia</b>
+        <iframe class="av-prev" id="avPrev" sandbox></iframe>
+        <div class="linha" style="margin-top:10px;display:flex;gap:8px;align-items:center">
+          <button class="primario" id="avEnviar" onclick="enviarAviso()">📧 Enviar aviso</button>
+          <button class="secundario" onclick="fecharDiag()">Cancelar</button>
+          <span class="sub">Depois do envio, o Status Controle vira <b>Início comunicado</b>.</span>
+        </div>`;
+      $('avPrev').srcdoc = r.html;
+      ['avMsg', 'avValor'].forEach(id => $(id).addEventListener('input', previaAviso));
+      $('avValor').addEventListener('change', previaAviso);
+    }).withFailureHandler(e => { $('diagCorpo').innerHTML = `<span style="color:#bf2600">❌ ${esc(e.message)}</span>`; })
+      .prepararAvisoInicioPainel(key, {});
+  }
+  function previaAviso() {
+    clearTimeout(avTimer);
+    avTimer = setTimeout(() => google.script.run.withSuccessHandler(r => { if ($('avPrev')) $('avPrev').srcdoc = r.html; })
+      .prepararAvisoInicioPainel(AV.key, { mensagem: $('avMsg').value, valorHora: $('avValor').checked }), 500);
+  }
+  function enviarAviso() {
+    const lista = id => $(id).value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+    const para = lista('avPara'), cc = lista('avCc');
+    if (!para.length && !cc.length) { alertaAviso('Informe ao menos um destinatário.'); return; }
+    $('avEnviar').disabled = true; $('avEnviar').textContent = 'Enviando…';
+    google.script.run.withSuccessHandler(r => {
+      fecharDiag();
+      mostrarMsg(`📧 Aviso de início enviado · ${esc(r.registro)} · status <b>${esc(r.status)}</b>`, 'ok');
+      carregar(true);
+    }).withFailureHandler(e => { $('avEnviar').disabled = false; $('avEnviar').textContent = '📧 Enviar aviso'; alertaAviso(e.message); })
+      .enviarAvisoInicioPainel({ issue: AV.key, para: para, cc: cc, assunto: $('avAssunto').value, mensagem: $('avMsg').value,
+        valorHora: $('avValor').checked, salvarConsultoria: !!($('avSalvarCons') && $('avSalvarCons').checked) });
+  }
+  function alertaAviso(msg) {
+    const box = document.createElement('div'); box.className = 'av-aviso alerta'; box.textContent = '❌ ' + msg;
+    $('diagCorpo').insertBefore(box, $('diagCorpo').firstChild);
+  }
 </script>
 </body>
 </html>

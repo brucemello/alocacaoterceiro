@@ -116,6 +116,18 @@
             <p style="margin-top:12px"><b>Token do sistema</b> (usado pelas rotinas automáticas e por quem ainda não salvou o próprio): <span id="tokSistema">—</span></p>
             <div class="linha"><input type="password" id="tokenSistema" placeholder="PAT para as rotinas automáticas"><button class="secundario" onclick="salvarTokenSistema()">Salvar token do sistema</button></div>
           </div>
+          <div class="card" id="cardConsultorias" style="grid-column:1/-1">
+            <h4>🏢 Consultorias (e-mails para o aviso de início)</h4>
+            <p>Quem recebe o e-mail <b>📧 Avisar início</b> da agenda junto com o analista. Vale para todos os times.</p>
+            <table class="membros"><thead><tr><th>Consultoria</th><th>E-mails para avisos</th><th>Contato</th><th>Atualizado</th><th></th></tr></thead>
+              <tbody id="tbCons"></tbody>
+              <tfoot><tr>
+                <td><input id="csNome" placeholder="Ex.: NEXPERTI CONSULTORIA EM INFORMATICA LTDA"></td>
+                <td><input id="csEmails" placeholder="contato@consultoria.com.br, rh@…"></td>
+                <td><input id="csContato" placeholder="Nome / telefone (opcional)"></td>
+                <td></td><td><button class="primario" onclick="salvarCons()">Adicionar / salvar</button></td></tr></tfoot></table>
+            <div class="res" id="resCons"></div>
+          </div>
           <div class="card">
             <h4>⏰ Atualização automática do Controle</h4>
             <p>Consulta o Jira <b>a cada 15 minutos</b>, mesmo com a planilha fechada, e envia um e-mail quando algo mudar
@@ -167,6 +179,7 @@
 
 <script>
   const $ = id => document.getElementById(id);
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const TELAS = { controle: 'TelaControle', projeto: 'TelaProjetoInterno', agenda: 'TelaAgenda', acessos: 'TelaAcessos' };
   const frames = {};          // aba -> iframe
   let abaAtual = 'controle';
@@ -268,7 +281,7 @@
     abaAtual = aba;
     document.querySelectorAll('.aba').forEach(b => b.classList.toggle('ativa', b.dataset.aba === aba));
     document.querySelectorAll('.painel').forEach(p => p.classList.toggle('ativo', p.id === 'p-' + aba));
-    if (aba === 'cfg') carregarConfig();
+    if (aba === 'cfg') { carregarConfig(); carregarCons(); }
     carregarTela(aba);
     if (frames[aba]) frames[aba].contentWindow.postMessage({ __painel: 'shown' }, '*');
   }
@@ -421,6 +434,33 @@
     google.script.run.withSuccessHandler(() => $('resCache').innerHTML = '<span class="ok">✔ Cache limpo.</span>')
       .withFailureHandler(e => $('resCache').innerHTML = `<span class="erro">${e.message}</span>`).limparCacheTemplatesPainel();
   }
+
+  // ---------- consultorias ----------
+  let CONS = [];
+  function carregarCons() {
+    google.script.run.withSuccessHandler(l => {
+      CONS = l;
+      $('tbCons').innerHTML = l.length ? l.map((c, i) => `<tr><td><b>${esc(c.nome)}</b></td><td>${esc(c.emails)}</td><td>${esc(c.contato)}</td>
+        <td style="font-size:11px">${esc(c.atualizado)}</td><td style="white-space:nowrap">
+        <button class="secundario" onclick="editarCons(${i})">✏️</button>
+        <button class="secundario" onclick="removerCons(${i})">🗑</button></td></tr>`).join('')
+        : '<tr><td colspan="5" style="color:#6b778c">Nenhuma consultoria cadastrada.</td></tr>';
+    }).withFailureHandler(e => $('resCons').innerHTML = `<span class="erro">${esc(e.message)}</span>`).listarConsultoriasPainel();
+  }
+  function editarCons(i) { const c = CONS[i]; $('csNome').value = c.nome; $('csEmails').value = c.emails; $('csContato').value = c.contato; $('csEmails').focus(); }
+  function salvarCons() {
+    $('resCons').textContent = 'Salvando…';
+    google.script.run.withSuccessHandler(() => {
+      $('resCons').innerHTML = '<span class="ok">✔ Consultoria salva.</span>';
+      ['csNome', 'csEmails', 'csContato'].forEach(k => $(k).value = ''); carregarCons();
+    }).withFailureHandler(e => $('resCons').innerHTML = `<span class="erro">${esc(e.message)}</span>`)
+      .salvarConsultoriaPainel({ nome: $('csNome').value, emails: $('csEmails').value, contato: $('csContato').value });
+  }
+  function removerCons(i) {
+    if (!confirm('Remover ' + CONS[i].nome + ' do cadastro?')) return;
+    google.script.run.withSuccessHandler(() => carregarCons()).removerConsultoriaPainel(CONS[i].nome);
+  }
+
   // ---------- Tour guiado ----------
   // Cada passo: aba a abrir (opcional), elemento a destacar (opcional), título e texto.
   let PERFIL = null, tourI = -1, URL_MANUAL = '';

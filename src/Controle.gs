@@ -9,7 +9,7 @@
 
 const CONFIG_CT = {
   ABA: 'Controle_Solicitacoes',
-  STATUS_CONTROLE: ['Aguardando solicitação', 'Solicitação aberta', 'Aprovado', 'Em andamento',
+  STATUS_CONTROLE: ['Aguardando solicitação', 'Solicitação aberta', 'Aprovado', 'Início comunicado', 'Em andamento',
     'Encerrado', 'Cancelado'],
   // Padrão do comentário automático com o número da solicitação
   REGEX_SOLICITACAO: /Solicita[çc][ãa]o\s*\[?\s*#?\s*(\d{4,})/i,
@@ -26,7 +26,7 @@ const COLS_CT = [
   'Tipo', 'Issue', 'Aberta em', 'Solicitante', 'Código Projeto (PSA)', 'Projeto', 'Analista / Recurso',
   'Squad', 'Período De', 'Período Até', 'Valor Hora (R$)', 'Dias', 'Horas', 'Valor Total (R$)',
   'Status Jira', 'Nº Solicitação', 'Link Solicitação', 'Status Controle', 'Observações', 'Última atualização',
-  'Nº Ticket', 'Status Ticket', 'Última resposta', 'Time'
+  'Nº Ticket', 'Status Ticket', 'Última resposta', 'Time', 'Aviso de início'
 ];
 const C_CT = {}; COLS_CT.forEach((n, i) => C_CT[n] = i + 1);
 
