@@ -12,7 +12,7 @@ const CONFIG = {
   URL_MANUAL: 'https://claude.ai/artifact/DRQeqkWsPJVWfJg7xVLmeq',
   ABA_LOG: 'Logs',
   ABAS_PROTEGIDAS: ['Logs', 'Criar_Issues', 'Template_Bruto', 'Controle_Solicitacoes',
-    'Rascunhos_PI', 'Rascunhos_Agenda', 'Acessos_Terceiros', 'Times', 'Perfis_Acesso', 'Credenciais_Terceiros', 'Consultorias']
+    'Rascunhos_PI', 'Rascunhos_Agenda', 'Acessos_Terceiros', 'Times', 'Perfis_Acesso', 'Credenciais_Terceiros', 'Consultorias', 'PSA_Emails']
 };
 
 /**
@@ -44,6 +44,7 @@ function onOpen() {
     .addItem('🔄 Atualizar Controle (status e nº solicitação)', 'atualizarControle')
     .addItem('📥 Importar issue(s) existente(s)', 'importarIssuesExistentes')
     .addItem('🔍 Diagnosticar linha selecionada', 'diagnosticarLinhaControle')
+    .addItem('📬 Ler e-mails do PSA (Agendas PSA)', 'lerEmailsPsaMenu')
     .addItem('⏰ Ativar atualização automática (15 min + e-mail)', 'ativarAtualizacaoAutomaticaControle')
     .addItem('📧 Enviar e-mail de teste', 'enviarEmailTesteControle')
     .addItem('📊 Enviar relatório semanal agora', 'enviarRelatorioSemanalMenu')

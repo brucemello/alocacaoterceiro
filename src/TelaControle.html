@@ -69,6 +69,8 @@
     .av-aviso { font-size:12px; border-radius:4px; padding:6px 10px; margin:6px 0; }
     .av-aviso.ok { background:#e3fcef; color:#006644; } .av-aviso.alerta { background:#fff7e6; color:#974f0c; border:1px solid #ffe2b3; }
     .av-prev { width:100%; height:380px; border:1px solid #dfe1e6; border-radius:4px; background:#fff; }
+    .psa-mail { margin-top:4px; font-size:11px; background:#e9f2ff; color:#0747a6; border-radius:4px; padding:3px 6px; }
+    .psa-mail.alerta { background:#fff7e6; color:#974f0c; }
     .diag-fundo { position:fixed; inset:0; background:rgba(9,30,66,.45); z-index:40; display:flex; align-items:flex-start; justify-content:center; padding:30px 12px; }
     .diag { background:#fff; border-radius:8px; width:min(860px,100%); max-height:calc(100vh - 60px); overflow:auto; padding:16px 18px; box-shadow:0 8px 28px rgba(9,30,66,.35); }
     .diag h3 { margin:0 0 6px; color:var(--azul); font-size:15px; }
@@ -339,7 +341,8 @@
         <td>${esc(l.statusJira)}</td>
         <td style="white-space:nowrap">${l.numSolic ? (l.linkSolic ? `<a href="${esc(l.linkSolic)}">#${esc(l.numSolic)}</a>` : '#' + esc(l.numSolic)) : '<span class="sub">—</span>'}
           ${l.ticket ? `<div class="sub">🎫 ${l.linkTicket ? `<a href="${esc(l.linkTicket)}">#${esc(l.ticket)}</a>` : '#' + esc(l.ticket)}${l.statusTicket ? ' · <b>' + esc(l.statusTicket) + '</b>' : ''}</div>` : ''}</td>
-        <td style="min-width:260px;max-width:360px">${l.ultimaResposta ? `<span title="${esc(l.ultimaResposta)}">${linkificar(l.ultimaResposta)}</span>` : '<span class="sub">—</span>'}</td>
+        <td style="min-width:260px;max-width:360px">${l.ultimaResposta ? `<span title="${esc(l.ultimaResposta)}">${linkificar(l.ultimaResposta)}</span>` : '<span class="sub">—</span>'}
+          ${l.psaEmail ? `<div class="psa-mail${/⚠️/.test(l.psaEmail) ? ' alerta' : ''}" title="Do e-mail Agendas PSA">📬 ${esc(l.psaEmail)}</div>` : ''}</td>
         <td style="min-width:170px"><select data-i="${esc(l.issue)}" data-c="Status Controle">${statusOpts}</select>
           ${l.avisoInicio ? `<div class="sub" title="${esc(l.avisoInicio)}">📧 início avisado ${esc(l.avisoInicio.split(' · ')[0])}</div>`
             : (l.tipo === 'Agenda' && l.statusControle === 'Aprovado' ? `<div class="sub" style="color:#b65c00">📧 falta avisar o início</div>` : '')}</td>
@@ -392,6 +395,8 @@
       if (r.mudancas && r.mudancas.length) partes.push(`✏️ ${r.mudancas.length} issue(s) com mudança: ${r.mudancas.map(m => m.issue).join(', ')}`);
       else partes.push('sem mudanças desde a última atualização (use 🔍 na linha para ver os comentários)');
       if (r.canceladas) partes.push(`🚫 ${r.canceladas} marcada(s) como Cancelado (cancelada no Jira)`);
+      if (r.psa && r.psa.erro) partes.push(`📬 ${esc(r.psa.erro)}`);
+      else if (r.psa && r.psa.lidos) partes.push(`📬 ${r.psa.lidos} e-mail(s) "Agendas PSA" lidos (${r.psa.agendas} agenda(s), ${r.psa.projetos} projeto(s))${r.psa.divergencias.length ? ' · ⚠️ período diferente: ' + r.psa.divergencias.join(', ') : ''}`);
       if (r.importados) partes.push(`${r.importados} importada(s) dos rascunhos`);
       if (r.erros && r.erros.length) partes.push(`⚠️ não encontradas: ${r.erros.join(', ')}`);
       mostrarMsg(partes.join(' · '), r.erros && r.erros.length ? 'info' : 'ok');

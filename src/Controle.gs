@@ -26,7 +26,7 @@ const COLS_CT = [
   'Tipo', 'Issue', 'Aberta em', 'Solicitante', 'Código Projeto (PSA)', 'Projeto', 'Analista / Recurso',
   'Squad', 'Período De', 'Período Até', 'Valor Hora (R$)', 'Dias', 'Horas', 'Valor Total (R$)',
   'Status Jira', 'Nº Solicitação', 'Link Solicitação', 'Status Controle', 'Observações', 'Última atualização',
-  'Nº Ticket', 'Status Ticket', 'Última resposta', 'Time', 'Aviso de início', 'Consultoria'
+  'Nº Ticket', 'Status Ticket', 'Última resposta', 'Time', 'Aviso de início', 'Consultoria', 'PSA (e-mail)'
 ];
 const C_CT = {}; COLS_CT.forEach((n, i) => C_CT[n] = i + 1);
 
@@ -335,6 +335,7 @@ function atualizarControleSilencioso_() {
 
   try { res.analistasVinculados = vincularAnalistasDasAgendas_(aba); } catch (e) {}
   try { preencherTimesVazios_(aba); } catch (e) {}
+  res.psa = sincronizarEmailsPsa_(aba);          // e-mails "Agendas PSA" do Gmail
 
   // O que mudou nesta atualização (base para o e-mail)
   try {
@@ -709,7 +710,7 @@ function diagnosticarLinhaControle() {
  ************************************************************/
 const AUTO_MINUTOS = 15;
 const CAMPOS_MONITORADOS = ['Status Jira', 'Nº Solicitação', 'Nº Ticket', 'Status Ticket', 'Última resposta',
-  'Código Projeto (PSA)', 'Status Controle', 'Analista / Recurso'];
+  'Código Projeto (PSA)', 'Status Controle', 'Analista / Recurso', 'PSA (e-mail)'];
 
 function criarGatilhoAuto_() {
   ScriptApp.getProjectTriggers()

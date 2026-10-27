@@ -114,6 +114,18 @@ A mesma planilha atende vários times. A aba **`Times`** guarda e-mail, nome, ti
 **Novo TL:** precisa de acesso de Editor à planilha. Ele abre o painel, vai em ⚙️ Configurações, salva o perfil
 (nome + time) e o próprio token, e testa a conexão.
 
+## E-mails "Agendas PSA" (Gmail)
+
+O **Atualizar** (painel e gatilho de 15 min) também procura no Gmail de quem roda os e-mails com assunto
+**"Agendas PSA …"** (últimos 180 dias). De cada conversa lê:
+- **Agendas criadas**: issue, recurso, período e exceções (uma resposta *Errata* corrige a linha);
+- **Observações**: liberado para apontamentos, margem, valor do projeto, custos planejados e saldo a planejar.
+
+O histórico fica na aba `PSA_Emails` e o resumo vai para a coluna **PSA (e-mail)** do Controle (Agenda pela chave da
+issue; Projeto Interno pelo código PSA), com aviso ⚠️ quando o período do e-mail difere do Controle. Agenda criada /
+projeto liberado leva o Status Controle de *Aguardando/Solicitação aberta* para **Aprovado**. Na primeira vez, autorize o
+Gmail pelo menu **🦇 → 📬 Ler e-mails do PSA**. O código só **lê** e-mails com esse assunto.
+
 ## Aviso de início da agenda
 
 No Controle, cada Agenda tem o botão **📧 Avisar início** (azul quando a agenda está Aprovada e ainda não foi avisada).
