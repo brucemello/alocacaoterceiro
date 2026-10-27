@@ -135,7 +135,7 @@ function prepararAvisoInicioPainel(key, opcoes) {
     dados: d,
     para: d.email ? [d.email] : [],
     cc: d.emailsConsultoria.concat(d.tlEmail ? [d.tlEmail] : []),
-    assunto: `Agenda criada - ${d.recurso} - ${d.codigoProjeto} - início ${d.de}`,
+    assunto: `Agenda aberta - ${d.recurso} - início ${d.de}`,
     html: htmlAvisoInicio_(d, o, primeiroNome)
   };
 }
@@ -147,6 +147,7 @@ function htmlAvisoInicio_(d, o, primeiroNome) {
   const linha = (k, v) => v ? `<tr><td style="padding:6px 10px;background:#f4f5f7;color:#42526e;font-weight:bold;width:210px;border-bottom:1px solid #fff">${e(k)}</td>` +
     `<td style="padding:6px 10px;border-bottom:1px solid #ebecf0">${v}</td></tr>` : '';
   const extra = String(o.mensagem || '').trim();
+  if (!o.detalhado) return htmlAvisoSimples_(d, e, linha, extra, primeiroNome);
   return `<div style="font-family:Arial,sans-serif;font-size:14px;color:#172b4d;max-width:680px">
   <p>Olá${primeiroNome ? ' ' + e(primeiroNome) : ''}${d.consultoria ? ' e equipe ' + e(d.consultoria) : ''},</p>
   <p>A <b>agenda de alocação foi criada</b>. Seguem os dados para o início das atividades:</p>
@@ -172,12 +173,30 @@ function htmlAvisoInicio_(d, o, primeiroNome) {
 </div>`;
 }
 
+/** Aviso curto (padrão): agenda aberta, data de início, período e apontamento. Sem valores, dias ou horas. */
+function htmlAvisoSimples_(d, e, linha, extra, primeiroNome) {
+  return `<div style="font-family:Arial,sans-serif;font-size:14px;color:#172b4d;max-width:640px">
+  <p>Olá${primeiroNome ? ' ' + e(primeiroNome) : ''}${d.consultoria ? ' e equipe ' + e(d.consultoria) : ''},</p>
+  <p>Informamos que a <b>agenda de alocação de ${e(d.recurso)} está aberta</b>.
+     O início das atividades será em <b>${e(d.de)}</b>.</p>
+  <table style="border-collapse:collapse;font-size:13px;width:100%">
+    ${linha('Data de início', '<b>' + e(d.de) + '</b>')}
+    ${linha('Período da agenda', '<b>' + e(d.de) + (d.ate ? ' a ' + e(d.ate) : '') + '</b>')}
+    ${linha('Projeto', e(d.projeto || d.codigoProjeto))}
+    ${linha('Líder responsável', e(d.tlNome) + (d.tlEmail ? ' (' + e(d.tlEmail) + ')' : ''))}
+  </table>
+  <p style="margin-top:16px">As horas devem ser apontadas no Fluig: <a href="${e(CONFIG_AV.URL_APONTAMENTO)}">${e(CONFIG_AV.URL_APONTAMENTO)}</a></p>
+  ${extra ? `<p>${e(extra).replace(/\n/g, '<br>')}</p>` : ''}
+  <p>Obrigado,<br>${e(d.tlNome)}${d.time ? '<br><span style="color:#6b778c">' + e(d.time) + '</span>' : ''}</p>
+</div>`;
+}
+
 /** Envia o aviso e atualiza o Controle. dados: { issue, para, cc, assunto, mensagem, valorHora, salvarConsultoria } */
 function enviarAvisoInicioPainel(dados) {
   const para = listaEmails_((dados.para || []).join(','));
   const cc = listaEmails_((dados.cc || []).join(',')).filter(e => para.indexOf(e) === -1);
   if (!para.length && !cc.length) throw new Error('Informe ao menos um destinatário.');
-  const op = { mensagem: dados.mensagem, valorHora: dados.valorHora };
+  const op = { mensagem: dados.mensagem, valorHora: dados.valorHora, detalhado: !!dados.detalhado };
   if (dados.consultoria !== undefined) op.consultoria = dados.consultoria;
   const prev = prepararAvisoInicioPainel(dados.issue, op);
   const d = prev.dados;

@@ -454,7 +454,45 @@
 
   // ---------- 📧 aviso de início da agenda (analista + consultoria) ----------
   let AV = null, avTimer = null;
+  /** 📧: resumo curto e "Enviar agora" (e-mail simples, sem valores). */
   function avisarInicio(key) {
+    fecharDiag();
+    document.body.insertAdjacentHTML('beforeend', `<div class="diag-fundo" id="diagFundo" onclick="if(event.target===this)fecharDiag()">
+      <div class="diag" style="width:min(560px,100%)"><h3>📧 Avisar início · ${esc(key)}</h3><div id="diagCorpo">Montando o aviso…</div></div></div>`);
+    google.script.run.withSuccessHandler(r => {
+      AV = { key: key, dados: r.dados, prep: r };
+      const d = r.dados;
+      const falta = !r.para.length ? 'A agenda não tem o e-mail do consultor.' : (!d.emailsConsultoria.length ? 'A consultoria não tem e-mail cadastrado.' : '');
+      $('diagCorpo').innerHTML = `
+        ${d.avisoAnterior ? `<div class="av-aviso alerta">Já enviado em ${esc(d.avisoAnterior)}.</div>` : ''}
+        <div class="av-grid" style="grid-template-columns:120px 1fr">
+          <label>Consultor</label><span>${esc(d.recurso)} · ${esc(r.para.join(', ') || '—')}</span>
+          <label>Consultoria</label><span>${esc(d.consultoria || '—')}${d.emailsConsultoria.length ? ' · ' + esc(d.emailsConsultoria.join(', ')) : ''}</span>
+          <label>Início</label><b>${esc(d.de)}</b>
+          <label>Período</label><b>${esc(d.de)}${d.ate ? ' a ' + esc(d.ate) : ''}</b>
+        </div>
+        <div class="sub">Mensagem: agenda aberta, data de início, período, projeto e link de apontamento no Fluig. Sem valores.</div>
+        ${falta ? `<div class="av-aviso alerta">${falta} Use “Editar antes de enviar”.</div>` : ''}
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          ${!falta ? '<button class="primario" id="avEnviar" onclick="enviarAvisoRapido()">📧 Enviar agora</button>' : ''}
+          <button class="secundario" onclick="abrirEditorAviso()">✏️ Editar antes de enviar</button>
+          <button class="secundario" onclick="fecharDiag()">Cancelar</button>
+        </div>`;
+    }).withFailureHandler(e => { $('diagCorpo').innerHTML = `<span style="color:#bf2600">❌ ${esc(e.message)}</span>`; })
+      .prepararAvisoInicioPainel(key, {});
+  }
+  function enviarAvisoRapido() {
+    const r = AV.prep;
+    $('avEnviar').disabled = true; $('avEnviar').textContent = 'Enviando…';
+    google.script.run.withSuccessHandler(x => {
+      fecharDiag(); mostrarMsg(`📧 Aviso enviado · ${esc(x.registro)} · status <b>${esc(x.status)}</b>`, 'ok'); carregar(true);
+    }).withFailureHandler(e => { $('avEnviar').disabled = false; $('avEnviar').textContent = '📧 Enviar agora'; alertaAviso(e.message); })
+      .enviarAvisoInicioPainel({ issue: AV.key, para: r.para, cc: r.cc, assunto: r.assunto, consultoria: r.dados.consultoria });
+  }
+
+  /** Editor completo (destinatários, assunto, mensagem extra, prévia). */
+  function abrirEditorAviso() {
+    const key = AV.key;
     fecharDiag();
     document.body.insertAdjacentHTML('beforeend', `<div class="diag-fundo" id="diagFundo" onclick="if(event.target===this)fecharDiag()">
       <div class="diag"><h3>📧 Avisar início · ${esc(key)}</h3><div id="diagCorpo">Montando o e-mail com os dados da agenda…</div></div></div>`);
@@ -482,7 +520,8 @@
           <label>Assunto</label><input id="avAssunto" value="${esc(r.assunto)}">
           <label>Mensagem extra</label><textarea id="avMsg" rows="2" placeholder="Opcional: orientações de início, reunião de kickoff, acessos…"></textarea>
           <span></span><div style="display:flex;gap:16px;flex-wrap:wrap">
-            <label style="font-weight:normal;display:flex;gap:5px;align-items:center"><input type="checkbox" id="avValor" style="width:auto"> incluir valor hora</label>
+            <label style="font-weight:normal;display:flex;gap:5px;align-items:center"><input type="checkbox" id="avDet" style="width:auto"> versão detalhada (dias/horas, código do recurso)</label>
+            <label style="font-weight:normal;display:flex;gap:5px;align-items:center"><input type="checkbox" id="avValor" style="width:auto"> incluir valor hora (só na detalhada)</label>
             ${!d.consultoriaCadastrada && d.consultoria ? `<label style="font-weight:normal;display:flex;gap:5px;align-items:center"><input type="checkbox" id="avSalvarCons" checked style="width:auto"> salvar os e-mails do Cc no cadastro da consultoria</label>` : ''}
           </div>
         </div>
@@ -498,13 +537,14 @@
       $('avCons').addEventListener('change', trocarConsultoria);
       ['avMsg', 'avValor'].forEach(id => $(id).addEventListener('input', previaAviso));
       $('avValor').addEventListener('change', previaAviso);
+      $('avDet').addEventListener('change', previaAviso);
     }).withFailureHandler(e => { $('diagCorpo').innerHTML = `<span style="color:#bf2600">❌ ${esc(e.message)}</span>`; })
       .prepararAvisoInicioPainel(key, {});
   }
   function previaAviso() {
     clearTimeout(avTimer);
     avTimer = setTimeout(() => google.script.run.withSuccessHandler(r => { if ($('avPrev')) $('avPrev').srcdoc = r.html; })
-      .prepararAvisoInicioPainel(AV.key, { mensagem: $('avMsg').value, valorHora: $('avValor').checked, consultoria: $('avCons').value }), 500);
+      .prepararAvisoInicioPainel(AV.key, { mensagem: $('avMsg').value, valorHora: $('avValor').checked, detalhado: $('avDet').checked, consultoria: $('avCons').value }), 500);
   }
   /** Troca a consultoria: tira do Cc os e-mails da anterior e coloca os da nova. */
   function trocarConsultoria() {
@@ -528,7 +568,7 @@
       carregar(true);
     }).withFailureHandler(e => { $('avEnviar').disabled = false; $('avEnviar').textContent = '📧 Enviar aviso'; alertaAviso(e.message); })
       .enviarAvisoInicioPainel({ issue: AV.key, para: para, cc: cc, assunto: $('avAssunto').value, mensagem: $('avMsg').value,
-        valorHora: $('avValor').checked, consultoria: $('avCons').value, salvarConsultoria: !!($('avSalvarCons') && $('avSalvarCons').checked) });
+        valorHora: $('avValor').checked, detalhado: $('avDet').checked, consultoria: $('avCons').value, salvarConsultoria: !!($('avSalvarCons') && $('avSalvarCons').checked) });
   }
   function alertaAviso(msg) {
     const box = document.createElement('div'); box.className = 'av-aviso alerta'; box.textContent = '❌ ' + msg;
