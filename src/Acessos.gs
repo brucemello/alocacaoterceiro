@@ -526,3 +526,26 @@ function removerChamadoAcesso(id) {
   abaChamadosAcesso_().deleteRow(c.linha);
   return listarChamadosAcesso(c.idSolic);
 }
+
+/** Vários acessos de uma vez ("Ryver, Kanoah") → um chamado "A abrir" para cada (ignora os que já existem). */
+function adicionarChamadosAcesso(idSolic, nomes) {
+  const ja = listarChamadosAcesso(idSolic).map(c => c.acesso.toLowerCase());
+  const lista = (Array.isArray(nomes) ? nomes : String(nomes || '').split(/[,;\n]+/))
+    .map(n => String(n).trim()).filter(Boolean).filter((n, i, a) => a.indexOf(n) === i && ja.indexOf(n.toLowerCase()) === -1);
+  if (!lista.length) throw new Error('Informe os acessos (separe por vírgula). Os que já estão na lista não são repetidos.');
+  let r = [];
+  lista.forEach(n => { r = salvarChamadoAcesso({ idSolic: idSolic, acesso: n, status: 'A abrir' }); });
+  return r;
+}
+
+/** Edição rápida na lista: nº, status ou observação de um chamado. */
+function alterarCampoChamadoAcesso(id, campo, valor) {
+  const c = chamadosDaAba_().find(x => x.id === id);
+  if (!c) throw new Error('Chamado não encontrado.');
+  const d = { id: id, idSolic: c.idSolic, acesso: c.acesso, chamado: c.chamado, status: c.status, obs: c.obs };
+  if (campo === 'chamado') { d.chamado = valor; if (numeroChamado_(valor) && c.status === 'A abrir') d.status = 'Aberto'; }
+  else if (campo === 'status') d.status = valor;
+  else if (campo === 'obs') d.obs = valor;
+  else throw new Error('Campo inválido.');
+  return salvarChamadoAcesso(d);
+}

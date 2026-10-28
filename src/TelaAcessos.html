@@ -60,6 +60,15 @@
     .ch-n { display:inline-block; margin:4px 0 0 4px; font-size:11px; padding:1px 7px; border-radius:9px; background:#e9f2ff; color:#0747a6; }
     .ch-n.aberto { background:#fff7e6; color:#974f0c; }
     @media (max-width: 760px) { .ch-form { grid-template-columns: 1fr; } }
+    tr.det-ch > td { background:#f7faff; border-bottom:2px solid #4c9aff; padding:10px 14px 12px 46px; }
+    .pch { width:100%; border-collapse:collapse; font-size:12px; background:#fff; border:1px solid #deebff; }
+    .pch th { text-align:left; background:#deebff; color:#0747a6; padding:5px 7px; font-size:11px; }
+    .pch td { padding:4px 7px; border-bottom:1px solid #ebecf0; vertical-align:middle; }
+    .pch tr.principal td { background:#f3f0ff; }
+    .pch tr.fechado td { color:#6b778c; }
+    .pch input, .pch select { padding:4px 6px; font-size:12px; }
+    .pch-add { display:flex; gap:6px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+    .pch-add input { flex:1; min-width:260px; }
     .cred-n { display:inline-block; margin:4px 0 0 4px; font-size:11px; padding:1px 7px; border-radius:9px; background:#f3f0ff; color:#403294; }
     @media (max-width: 760px) { .cred-form { grid-template-columns: 1fr; } }
     .texto { background:#f4f5f7; border:1px solid var(--borda); border-radius:4px; padding:10px; white-space:pre-wrap; font-family:Consolas, monospace; font-size:12px; max-height:240px; overflow:auto; }
@@ -532,9 +541,10 @@
         ? `<div class="aviso-fim${dias < 0 ? ' vencido' : ''}">${dias < 0 ? `⛔ encerrou há ${-dias} dia(s) — revogar` : `⏳ termina em ${dias} dia(s)`}</div>` : '';
       const opts = (DADOS.statusOpcoes.indexOf(l.status) === -1 && l.status ? [l.status] : []).concat(DADOS.statusOpcoes)
         .map(s => `<option${s === l.status ? ' selected' : ''}>${esc(s)}</option>`).join('');
-      return `<tr class="${INATIVOS.indexOf(l.status) !== -1 && !aviso ? 'inativo' : ''}">
+      const extrasAbertos = l.chamadosExtras && l.chamadosExtras.abertos;
+      return `<tr class="${INATIVOS.indexOf(l.status) !== -1 && !aviso && !extrasAbertos ? 'inativo' : ''}">
         <td style="white-space:nowrap"><button class="secundario mini" onclick="editar('${esc(l.id)}')" title="Editar / gerar texto de novo">✏️</button>
-          <button class="secundario mini" onclick="novoChamadoExtra('${esc(l.id)}')" title="Registrar outro chamado de acesso (Azure, VPN, sistema…)">🎫➕</button></td>
+          <button class="${ABERTOS[l.id] ? 'primario' : 'secundario'} mini" onclick="toggleChamados('${esc(l.id)}')" title="Todos os chamados deste terceiro (Horacius + Azure, Ryver, Kanoah…)">🎫 ${l.chamadosExtras && l.chamadosExtras.total ? l.chamadosExtras.total + 1 : 1}</button></td>
         <td style="min-width:180px"><b>${esc(l.recurso)}</b><div class="sub">${esc(l.email)}${l.consultoria ? ' · ' + esc(l.consultoria) : ''}</div></td>
         <td style="min-width:220px">${esc(l.projeto)}<div class="sub">${esc(l.codigoProjeto)}${l.squad ? ' · ' + esc(l.squad) : ''}${l.issue ? ` · <a href="${DADOS.jiraUrl}/browse/${esc(l.issue)}">${esc(l.issue)}</a>` : ''}</div></td>
         <td style="white-space:nowrap">${esc(l.de)}${l.ate ? ' → ' + esc(l.ate) : ''}${aviso}</td>
@@ -545,7 +555,7 @@
           ${l.status === 'Liberar no Horacius' ? `<button class="horacius mini st-horacius" onclick="abrirChecklist('${esc(l.id)}')">🔐 Abrir Horacius + checklist</button>` : ''}</td>
         <td style="min-width:200px"><input data-id="${esc(l.id)}" data-c="Observações" value="${esc(l.obs)}"></td>
         <td style="white-space:nowrap">${esc(l.criadoEm.split(' ')[0])}<div class="sub">${esc(l.solicitante)}</div></td>
-      </tr>`;
+      </tr>${ABERTOS[l.id] ? `<tr class="det-ch"><td colspan="9">${painelChamados(l)}</td></tr>` : ''}`;
     }).join('');
   }
 
@@ -674,7 +684,7 @@
   function badgeChamados(l) {
     const c = l.chamadosExtras;
     if (!c || !c.total) return '';
-    return `<span class="ch-n${c.abertos ? ' aberto' : ''}" title="Outros chamados de acesso">🎫 ${c.total} chamado(s)${c.abertos ? ' · ' + c.abertos + ' em aberto' : ' · concluídos'}</span>`;
+    return `<span class="ch-n${c.abertos ? ' aberto' : ''}" style="cursor:pointer" onclick="toggleChamados('${esc(l.id)}')" title="Ver todos os chamados">🎫 ${c.total} chamado(s)${c.abertos ? ' · ' + c.abertos + ' em aberto' : ' · concluídos'}</span>`;
   }
   function novoChamadoExtra(id) {
     editar(id);
@@ -742,6 +752,79 @@
       `${$('ate').value ? ' até ' + dataBR($('ate').value) : ''}.\n` +
       `${$('chObs').value.trim() ? '\nObservação: ' + $('chObs').value.trim() + '\n' : ''}\nObrigado,\n${nomeDoEmail(DADOS.solicitante) || ''}`;
     copiarTexto(t, 'Texto do chamado copiado. Cole no portal de suporte.');
+  }
+
+  // ---------- todos os chamados do terceiro, abertos na própria linha ----------
+  const ABERTOS = {}, CH_LINHA = {};
+  const FECHADOS_CH = ['Concluído', 'Negado', 'Cancelado'];
+  function toggleChamados(id) {
+    if (ABERTOS[id]) { delete ABERTOS[id]; render(); return; }
+    ABERTOS[id] = true; render(); carregarChamadosLinha(id);
+  }
+  function carregarChamadosLinha(id) {
+    google.script.run.withSuccessHandler(lista => {
+      CH_LINHA[id] = lista;
+      const l = DADOS.linhas.find(x => x.id === id);
+      if (l) l.chamadosExtras = { total: lista.length, abertos: lista.filter(c => FECHADOS_CH.indexOf(c.status) === -1).length };
+      render();
+    }).withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).listarChamadosAcesso(id);
+  }
+  function painelChamados(l) {
+    const lista = CH_LINHA[l.id];
+    const st = DADOS.statusChamados || [];
+    const opts = s => st.map(x => `<option${x === s ? ' selected' : ''}>${esc(x)}</option>`).join('');
+    const linhaCh = c => `<tr class="${FECHADOS_CH.indexOf(c.status) !== -1 ? 'fechado' : ''}">
+        <td><b>${esc(c.acesso)}</b></td>
+        <td style="white-space:nowrap">${c.chamado ? `<a href="${DADOS.urlTicket}${esc(c.chamado)}">#${esc(c.chamado)}</a> ` : ''}
+          <input data-ch="${esc(c.id)}" data-campo="chamado" data-sol="${esc(l.id)}" value="${esc(c.chamado)}" placeholder="nº do chamado" style="width:120px"></td>
+        <td><select data-ch="${esc(c.id)}" data-campo="status" data-sol="${esc(l.id)}">${opts(c.status)}</select></td>
+        <td class="senha-st">${esc(c.abertoEm)}</td><td class="senha-st">${esc(c.concluidoEm)}</td>
+        <td><input data-ch="${esc(c.id)}" data-campo="obs" data-sol="${esc(l.id)}" value="${esc(c.obs)}" placeholder="observação" style="width:100%"></td>
+        <td style="white-space:nowrap"><button class="secundario mini" title="Copiar o texto do chamado deste acesso" onclick="copiarTextoAcesso('${esc(l.id)}', ${esc(JSON.stringify(c.acesso))})">📋</button>
+          <button class="secundario mini" title="Remover" onclick="removerChamadoLinha('${esc(c.id)}', '${esc(l.id)}')">✕</button></td></tr>`;
+    return `<b style="font-size:12px;color:#0747a6">🎫 Chamados de acesso de ${esc(l.recurso)}</b>
+      <table class="pch" style="margin-top:6px"><thead><tr><th style="width:22%">Acesso / sistema</th><th>Nº chamado</th><th>Status</th><th>Aberto em</th><th>Concluído em</th><th>Observação</th><th></th></tr></thead><tbody>
+        <tr class="principal ${INATIVOS.indexOf(l.status) !== -1 ? 'fechado' : ''}"><td><b>🔐 Horacius</b> <span class="senha-st">(chamado principal)</span></td>
+          <td>${l.chamado ? `<a href="${DADOS.urlTicket}${esc(l.chamado)}">#${esc(l.chamado)}</a>` : '<span class="senha-st">—</span>'}</td>
+          <td><b>${esc(l.status)}</b></td><td class="senha-st">${esc(l.criadoEm.split(' ')[0])}</td><td></td>
+          <td class="senha-st">nº e status na linha acima</td><td></td></tr>
+        ${lista ? lista.map(linhaCh).join('') : '<tr><td colspan="7" class="senha-st">Carregando…</td></tr>'}
+      </tbody></table>
+      <div class="pch-add">
+        <input id="add-${esc(l.id)}" list="dlChAcessosLinha" placeholder="Novos acessos a pedir, separados por vírgula (ex.: Ryver, Kanoah)"
+          onkeydown="if(event.key==='Enter')adicionarAcessosLinha('${esc(l.id)}')">
+        <button class="primario mini" onclick="adicionarAcessosLinha('${esc(l.id)}')">➕ Adicionar</button>
+        <button class="portal mini" onclick="abrirPortal()">🔗 Portal de suporte</button>
+        <span class="senha-st">cada acesso vira um chamado “A abrir”; ao informar o nº ele passa para “Aberto”</span>
+      </div>
+      <datalist id="dlChAcessosLinha">${(typeof SUGESTOES_CH !== 'undefined' ? SUGESTOES_CH : []).concat(['Ryver', 'Kanoah']).map(s => `<option value="${esc(s)}">`).join('')}</datalist>`;
+  }
+  function adicionarAcessosLinha(id) {
+    const v = $('add-' + id).value;
+    google.script.run.withSuccessHandler(lista => { CH_LINHA[id] = lista; mostrarMsg('🎫 Acesso(s) adicionado(s). Abra cada chamado no portal e informe o nº.', 'ok'); carregarChamadosLinha(id); })
+      .withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).adicionarChamadosAcesso(id, v);
+  }
+  function removerChamadoLinha(chId, id) {
+    if (!confirm('Remover este chamado do controle?')) return;
+    google.script.run.withSuccessHandler(() => carregarChamadosLinha(id)).removerChamadoAcesso(chId);
+  }
+  // edição rápida (nº, status, observação) dos chamados na linha
+  document.addEventListener('change', ev => {
+    const el = ev.target;
+    if (!el.dataset || !el.dataset.ch) return;
+    google.script.run.withSuccessHandler(() => { el.classList.add('salvo'); carregarChamadosLinha(el.dataset.sol); })
+      .withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro'))
+      .alterarCampoChamadoAcesso(el.dataset.ch, el.dataset.campo, el.value);
+  });
+  /** Texto do chamado para um acesso, com os dados do terceiro da linha. */
+  function copiarTextoAcesso(id, acesso) {
+    const l = DADOS.linhas.find(x => x.id === id); if (!l) return;
+    const proj = [l.codigoProjeto, l.projeto].filter(Boolean).join(' - ');
+    const t = `Assunto: Acesso a ${acesso} - analista terceiro ${l.recurso}\n\nOlá,\n\nSolicito o acesso a ${acesso} para o analista terceiro ${l.recurso}` +
+      ` (e-mail: ${l.email})${l.consultoria ? ', consultoria ' + l.consultoria : ''}.\n` +
+      `Ele faz parte do time de desenvolvimento${l.squad ? ' da squad ' + l.squad : ''}${proj ? ', projeto ' + proj : ''}` +
+      `${l.de ? ', a partir de ' + l.de : ''}${l.ate ? ' até ' + l.ate : ''}.\n\nObrigado,\n${nomeDoEmail(DADOS.solicitante) || ''}`;
+    copiarTexto(t, `Texto do chamado de ${acesso} copiado. Cole no portal de suporte.`);
   }
 </script>
 </body>

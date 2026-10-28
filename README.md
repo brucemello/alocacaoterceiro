@@ -141,7 +141,9 @@ o campo *Nome da Consultoria* sugere as consultorias cadastradas.
 ## Outros chamados de acesso
 
 Cada solicitação de acesso pode ter **vários chamados extras** (Azure DevOps, VPN, sistemas…), no passo
-**6 · Outros chamados de acesso** do formulário ou pelo botão **🎫➕** da linha. Cada chamado tem acesso, nº (link para o
+**6 · Outros chamados de acesso** do formulário ou, mais prático, pelo botão **🎫** da linha: ele abre embaixo do terceiro
+a lista de **todos** os chamados (Horacius principal + extras), com nº/status/observação editáveis ali mesmo e um campo para
+adicionar **vários acessos de uma vez** ("Ryver, Kanoah"), cada um com o botão 📋 que copia o texto do chamado. Cada chamado tem acesso, nº (link para o
 portal), status (*A abrir, Aberto, Em atendimento, Aguardando terceiro, Concluído, Negado, Cancelado*), datas de abertura e
 conclusão automáticas e observação; o botão **Copiar texto do chamado** monta o pedido para o portal. Ficam na aba
 `Chamados_Acesso`; a linha mostra "🎫 N chamado(s) · X em aberto" e há um card para filtrar quem tem chamado em aberto.
