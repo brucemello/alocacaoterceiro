@@ -56,6 +56,10 @@
     table.cred td { padding:5px 6px; border-bottom:1px solid #ebecf0; vertical-align:middle; }
     table.cred code { font-size:12px; background:#f4f5f7; padding:1px 5px; border-radius:3px; }
     .senha-st { font-size:11px; color:#6b778c; }
+    .ch-form { display:grid; grid-template-columns: 1.3fr 1fr 150px 1.3fr auto; gap:6px; align-items:center; }
+    .ch-n { display:inline-block; margin:4px 0 0 4px; font-size:11px; padding:1px 7px; border-radius:9px; background:#e9f2ff; color:#0747a6; }
+    .ch-n.aberto { background:#fff7e6; color:#974f0c; }
+    @media (max-width: 760px) { .ch-form { grid-template-columns: 1fr; } }
     .cred-n { display:inline-block; margin:4px 0 0 4px; font-size:11px; padding:1px 7px; border-radius:9px; background:#f3f0ff; color:#403294; }
     @media (max-width: 760px) { .cred-form { grid-template-columns: 1fr; } }
     .texto { background:#f4f5f7; border:1px solid var(--borda); border-radius:4px; padding:10px; white-space:pre-wrap; font-family:Consolas, monospace; font-size:12px; max-height:240px; overflow:auto; }
@@ -164,6 +168,25 @@
         <tbody id="tbCred"></tbody></table>
       <div class="linha"><button class="secundario" onclick="copiarMensagemAnalista()">📋 Copiar mensagem para o analista</button>
         <span style="font-size:11px;color:#6b778c">inclui as senhas que estão com você; envie por um canal privado e peça para trocar no primeiro acesso</span></div>
+    </div>
+
+    <div class="passo">6 · Outros chamados de acesso <span style="font-weight:normal;color:#6b778c">(Azure, VPN, sistemas… um por chamado)</span></div>
+    <div id="chBloqueio" class="dica-horacius">Salve a solicitação primeiro (passo 4) para registrar outros chamados.</div>
+    <div id="chArea" style="display:none">
+      <div class="ch-form">
+        <input id="chAcesso" list="dlChAcessos" placeholder="Acesso / sistema (ex.: Azure DevOps)"><datalist id="dlChAcessos"></datalist>
+        <input id="chNum" placeholder="Nº do chamado (ou deixe em branco se ainda vai abrir)">
+        <select id="chStatus"></select>
+        <input id="chObs" placeholder="Observação (opcional)">
+        <button class="primario" onclick="salvarChamadoExtra()">➕ Registrar chamado</button>
+      </div>
+      <div class="linha">
+        <button class="secundario mini" onclick="copiarTextoChamadoExtra()">📋 Copiar texto do chamado</button>
+        <button class="portal mini" onclick="abrirPortal()">🔗 Abrir portal de suporte</button>
+        <span style="font-size:11px;color:#6b778c">o texto usa o acesso digitado acima e os dados do terceiro</span>
+      </div>
+      <table class="cred"><thead><tr><th>Acesso / sistema</th><th>Nº chamado</th><th>Status</th><th>Aberto em</th><th>Concluído em</th><th>Observação</th><th></th></tr></thead>
+        <tbody id="tbCh"></tbody></table>
     </div>
   </div>
 
@@ -470,6 +493,7 @@
       { id: 'andamento', v: L.filter(l => l.status === 'Chamado aberto' || l.status === 'Em atendimento').length, r: 'chamado aberto / em atendimento' },
       { id: 'st:Liberar no Horacius', v: L.filter(l => l.status === 'Liberar no Horacius').length, r: 'liberar no Horacius', cls: 'alerta' },
       { id: 'concedidos', v: L.filter(concedido).length, r: 'acessos concedidos / Horacius liberado', cls: 'ok' },
+      { id: 'extras', v: L.filter(l => l.chamadosExtras && l.chamadosExtras.abertos).length, r: 'com outros chamados em aberto', cls: L.some(l => l.chamadosExtras && l.chamadosExtras.abertos) ? 'alerta' : '' },
       { id: 'fim', v: fim.length, r: `terminam em até ${DADOS.diasAviso} dias (revogar)`, cls: fim.length ? 'alerta' : '' },
       { id: '', v: L.length, r: 'solicitações no total' }
     ];
@@ -487,8 +511,9 @@
       if (filtroKpi === 'andamento' && !(l.status === 'Chamado aberto' || l.status === 'Em atendimento')) return false;
       if (filtroKpi === 'fim' && !terminando(l)) return false;
       if (filtroKpi === 'concedidos' && !concedido(l)) return false;
+      if (filtroKpi === 'extras' && !(l.chamadosExtras && l.chamadosExtras.abertos)) return false;
       if (st && l.status !== st) return false;
-      if (!st && !inat && !filtroKpi && INATIVOS.indexOf(l.status) !== -1 && !terminando(l)) return false;
+      if (!st && !inat && !filtroKpi && INATIVOS.indexOf(l.status) !== -1 && !terminando(l) && !(l.chamadosExtras && l.chamadosExtras.abertos)) return false;
       if (q && [l.recurso, l.email, l.projeto, l.codigoProjeto, l.squad, l.chamado, l.acessos, l.obs, l.issue].join(' ').toLowerCase().indexOf(q) === -1) return false;
       return true;
     }).sort((a, b) => b.criadoTs - a.criadoTs);
@@ -508,11 +533,12 @@
       const opts = (DADOS.statusOpcoes.indexOf(l.status) === -1 && l.status ? [l.status] : []).concat(DADOS.statusOpcoes)
         .map(s => `<option${s === l.status ? ' selected' : ''}>${esc(s)}</option>`).join('');
       return `<tr class="${INATIVOS.indexOf(l.status) !== -1 && !aviso ? 'inativo' : ''}">
-        <td><button class="secundario mini" onclick="editar('${esc(l.id)}')" title="Editar / gerar texto de novo">✏️</button></td>
+        <td style="white-space:nowrap"><button class="secundario mini" onclick="editar('${esc(l.id)}')" title="Editar / gerar texto de novo">✏️</button>
+          <button class="secundario mini" onclick="novoChamadoExtra('${esc(l.id)}')" title="Registrar outro chamado de acesso (Azure, VPN, sistema…)">🎫➕</button></td>
         <td style="min-width:180px"><b>${esc(l.recurso)}</b><div class="sub">${esc(l.email)}${l.consultoria ? ' · ' + esc(l.consultoria) : ''}</div></td>
         <td style="min-width:220px">${esc(l.projeto)}<div class="sub">${esc(l.codigoProjeto)}${l.squad ? ' · ' + esc(l.squad) : ''}${l.issue ? ` · <a href="${DADOS.jiraUrl}/browse/${esc(l.issue)}">${esc(l.issue)}</a>` : ''}</div></td>
         <td style="white-space:nowrap">${esc(l.de)}${l.ate ? ' → ' + esc(l.ate) : ''}${aviso}</td>
-        <td style="min-width:200px">${esc(l.acessos)}<div>${progressoHoracius(l)}${l.qtdCred ? `<span class="cred-n" title="Credenciais registradas">🔑 ${l.qtdCred} credencial(is)</span>` : ''}</div></td>
+        <td style="min-width:200px">${esc(l.acessos)}<div>${progressoHoracius(l)}${l.qtdCred ? `<span class="cred-n" title="Credenciais registradas">🔑 ${l.qtdCred} credencial(is)</span>` : ''}${badgeChamados(l)}</div></td>
         <td style="min-width:120px">${l.chamado ? `<a href="${DADOS.urlTicket}${esc(l.chamado)}">#${esc(l.chamado)}</a>` : ''}
           <input data-id="${esc(l.id)}" data-c="Nº Chamado" value="${esc(l.chamado)}" placeholder="nº do chamado" style="margin-top:3px"></td>
         <td style="min-width:160px"><select data-id="${esc(l.id)}" data-c="Status">${opts}</select>
@@ -552,6 +578,7 @@
     const tem = !!editandoId;
     $('credArea').style.display = tem ? 'block' : 'none';
     $('credBloqueio').style.display = tem ? 'none' : 'block';
+    mostrarChamadosExtras();
     ['credColar', 'credAtivo', 'credAcesso', 'credUsuario', 'credSenha'].forEach(k => $(k).value = '');
     $('dlAtivos').innerHTML = Array.from(new Set((DADOS.perfis || []).map(p => p.ativo))).map(a => `<option value="${esc(a)}">`).join('');
     CREDS = []; desenharCreds();
@@ -640,6 +667,82 @@
       .withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).textoCredenciaisParaAnalista(editandoId);
   }
   $('credColar').addEventListener('input', aplicarColagem);
+
+  // ---------- outros chamados de acesso ----------
+  let CHS = [];
+  const SUGESTOES_CH = ['Azure DevOps', 'VPN', 'GitHub', 'Confluence', 'Fluig', 'Protheus (ambiente de desenvolvimento)', 'Pasta de rede', 'TFS', 'Teams'];
+  function badgeChamados(l) {
+    const c = l.chamadosExtras;
+    if (!c || !c.total) return '';
+    return `<span class="ch-n${c.abertos ? ' aberto' : ''}" title="Outros chamados de acesso">🎫 ${c.total} chamado(s)${c.abertos ? ' · ' + c.abertos + ' em aberto' : ' · concluídos'}</span>`;
+  }
+  function novoChamadoExtra(id) {
+    editar(id);
+    setTimeout(() => { $('chArea').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('chAcesso').focus(); }, 300);
+  }
+  function mostrarChamadosExtras() {
+    const tem = !!editandoId;
+    $('chArea').style.display = tem ? 'block' : 'none';
+    $('chBloqueio').style.display = tem ? 'none' : 'block';
+    ['chAcesso', 'chNum', 'chObs'].forEach(k => $(k).value = '');
+    $('chStatus').innerHTML = '<option value="">Status: automático</option>' + (DADOS.statusChamados || ['A abrir', 'Aberto', 'Concluído']).map(s => `<option>${esc(s)}</option>`).join('');
+    $('chStatus').value = '';
+    $('dlChAcessos').innerHTML = SUGESTOES_CH.concat(DADOS.sistemas || []).filter((v, i, a) => a.indexOf(v) === i).map(s => `<option value="${esc(s)}">`).join('');
+    CHS = []; desenharChamados();
+    if (tem) google.script.run.withSuccessHandler(l => { CHS = l; desenharChamados(); })
+      .withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).listarChamadosAcesso(editandoId);
+  }
+  function desenharChamados() {
+    const opts = s => (DADOS.statusChamados || []).map(x => `<option${x === s ? ' selected' : ''}>${esc(x)}</option>`).join('');
+    $('tbCh').innerHTML = CHS.length ? CHS.map(c => `<tr>
+      <td><b>${esc(c.acesso)}</b></td>
+      <td>${c.chamado ? `<a href="${DADOS.urlTicket}${esc(c.chamado)}">#${esc(c.chamado)}</a>` : '<span class="senha-st">a abrir</span>'}</td>
+      <td><select onchange="statusChamadoExtra('${esc(c.id)}', this.value)">${opts(c.status)}</select></td>
+      <td class="senha-st">${esc(c.abertoEm)}</td><td class="senha-st">${esc(c.concluidoEm)}</td>
+      <td style="font-size:12px">${esc(c.obs)}</td>
+      <td style="white-space:nowrap"><button class="secundario mini" onclick="editarChamadoExtra('${esc(c.id)}')" title="Editar">✏️</button>
+        <button class="secundario mini" onclick="removerChamadoExtra('${esc(c.id)}')" title="Remover">✕</button></td></tr>`).join('')
+      : '<tr><td colspan="7" class="senha-st">Nenhum outro chamado registrado.</td></tr>';
+  }
+  let chEditando = '';
+  function editarChamadoExtra(id) {
+    const c = CHS.find(x => x.id === id); if (!c) return;
+    chEditando = id; $('chAcesso').value = c.acesso; $('chNum').value = c.chamado; $('chStatus').value = c.status; $('chObs').value = c.obs;
+    $('chAcesso').focus();
+  }
+  function atualizarBadge(l) {
+    const linha = DADOS.linhas.find(x => x.id === editandoId);
+    if (linha) { linha.chamadosExtras = { total: l.length, abertos: l.filter(c => ['Concluído', 'Negado', 'Cancelado'].indexOf(c.status) === -1).length }; render(); }
+  }
+  function salvarChamadoExtra() {
+    google.script.run.withSuccessHandler(l => {
+      CHS = l; desenharChamados(); atualizarBadge(l); chEditando = '';
+      ['chAcesso', 'chNum', 'chObs'].forEach(k => $(k).value = ''); $('chStatus').value = '';
+      mostrarMsg('🎫 Chamado registrado.', 'ok');
+    }).withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro'))
+      .salvarChamadoAcesso({ id: chEditando, idSolic: editandoId, acesso: $('chAcesso').value, chamado: $('chNum').value, status: $('chStatus').value, obs: $('chObs').value });
+  }
+  function statusChamadoExtra(id, st) {
+    google.script.run.withSuccessHandler(l => { CHS = l; desenharChamados(); atualizarBadge(l); })
+      .withFailureHandler(e => mostrarMsg('❌ ' + esc(e.message), 'erro')).alterarStatusChamadoAcesso(id, st);
+  }
+  function removerChamadoExtra(id) {
+    if (!confirm('Remover este chamado do controle?')) return;
+    google.script.run.withSuccessHandler(l => { CHS = l; desenharChamados(); atualizarBadge(l); }).removerChamadoAcesso(id);
+  }
+  /** Texto pronto para o portal: acesso digitado + dados do terceiro. */
+  function copiarTextoChamadoExtra() {
+    const acesso = $('chAcesso').value.trim() || '[acesso / sistema]';
+    const nome = $('recurso').value.trim(), email = $('email').value.trim();
+    const proj = [$('codigoProjeto').value.toUpperCase(), $('projeto').value].filter(Boolean).join(' - ');
+    const t = `Assunto: Acesso a ${acesso} - analista terceiro ${nome}\n\nOlá,\n\nSolicito o acesso a ${acesso} para o analista terceiro ${nome}` +
+      ` (e-mail: ${email})${$('consultoria').value ? ', consultoria ' + $('consultoria').value : ''}.\n` +
+      `Ele faz parte do time de desenvolvimento${$('squad').value ? ' da squad ' + $('squad').value : ''}` +
+      `${proj ? ', projeto ' + proj : ''}${$('de').value ? ', a partir de ' + dataBR($('de').value) : ''}` +
+      `${$('ate').value ? ' até ' + dataBR($('ate').value) : ''}.\n` +
+      `${$('chObs').value.trim() ? '\nObservação: ' + $('chObs').value.trim() + '\n' : ''}\nObrigado,\n${nomeDoEmail(DADOS.solicitante) || ''}`;
+    copiarTexto(t, 'Texto do chamado copiado. Cole no portal de suporte.');
+  }
 </script>
 </body>
 </html>

@@ -138,6 +138,14 @@ na primeira vez, o próprio aviso pode salvar o e-mail informado. No aviso dá p
 (troca os e-mails do Cc); no envio ela fica **associada à agenda** (coluna `Consultoria` do Controle). No formulário da Agenda,
 o campo *Nome da Consultoria* sugere as consultorias cadastradas.
 
+## Outros chamados de acesso
+
+Cada solicitação de acesso pode ter **vários chamados extras** (Azure DevOps, VPN, sistemas…), no passo
+**6 · Outros chamados de acesso** do formulário ou pelo botão **🎫➕** da linha. Cada chamado tem acesso, nº (link para o
+portal), status (*A abrir, Aberto, Em atendimento, Aguardando terceiro, Concluído, Negado, Cancelado*), datas de abertura e
+conclusão automáticas e observação; o botão **Copiar texto do chamado** monta o pedido para o portal. Ficam na aba
+`Chamados_Acesso`; a linha mostra "🎫 N chamado(s) · X em aberto" e há um card para filtrar quem tem chamado em aberto.
+
 ## Credenciais do terceiro
 
 Na solicitação de acesso, o passo **5 · Credenciais geradas no Horacius** guarda o que o Horacius gera

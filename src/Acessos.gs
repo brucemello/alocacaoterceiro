@@ -215,6 +215,8 @@ function obterDadosAcessos(timeSel) {
     };
   }).filter(l => l.id && esc.filtro(l.time));
   try { const n = contarCredenciais_(); base.linhas.forEach(l => l.qtdCred = n[l.id] || 0); } catch (e) {}
+  try { const ch = resumoChamadosAcesso_(); base.linhas.forEach(l => l.chamadosExtras = ch[l.id] || { total: 0, abertos: 0 }); } catch (e) {}
+  base.statusChamados = STATUS_CH;
   return base;
 }
 
@@ -429,4 +431,98 @@ function textoCredenciaisParaAnalista(idSolic) {
     .filter(Boolean).join('\n'));
   return `Olá ${lista[0].recurso || ''},\n\nSeguem os seus acessos:\n\n${blocos.join('\n\n')}\n\n` +
     'Troque a senha no primeiro acesso e não compartilhe com ninguém.';
+}
+
+/************************************************************
+ * OUTROS CHAMADOS DE ACESSO (Azure, VPN, sistemas…)
+ * Cada solicitação de acesso pode ter vários chamados extras, cada um com
+ * seu nº, status e datas, na aba 'Chamados_Acesso'.
+ ************************************************************/
+const ABA_CH = 'Chamados_Acesso';
+const COLS_CH = ['ID', 'ID Solicitação', 'Recurso', 'Acesso / sistema', 'Nº Chamado', 'Status', 'Aberto em',
+  'Concluído em', 'Observação', 'Registrado por', 'Atualizado em'];
+const C_CH = {}; COLS_CH.forEach((n, i) => C_CH[n] = i + 1);
+const STATUS_CH = ['A abrir', 'Aberto', 'Em atendimento', 'Aguardando terceiro', 'Concluído', 'Negado', 'Cancelado'];
+const STATUS_CH_FECHADOS = ['Concluído', 'Negado', 'Cancelado'];
+
+function abaChamadosAcesso_() {
+  const ss = planilha_();
+  let aba = ss.getSheetByName(ABA_CH);
+  if (aba) return aba;
+  aba = ss.insertSheet(ABA_CH);
+  aba.getRange(1, 1, 1, COLS_CH.length).setValues([COLS_CH])
+    .setFontWeight('bold').setBackground('#1f4e78').setFontColor('#ffffff');
+  aba.setFrozenRows(1);
+  [80, 90, 200, 240, 110, 130, 110, 110, 280, 200, 130].forEach((w, i) => aba.setColumnWidth(i + 1, w));
+  aba.getRange(2, C_CH['Status'], aba.getMaxRows() - 1, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(STATUS_CH, true).setAllowInvalid(true).build());
+  return aba;
+}
+
+function chamadosDaAba_() {
+  const aba = planilha_().getSheetByName(ABA_CH);
+  if (!aba || aba.getLastRow() < 2) return [];
+  return aba.getRange(2, 1, aba.getLastRow() - 1, COLS_CH.length).getDisplayValues().map((r, i) => {
+    const g = c => String(r[C_CH[c] - 1] || '').trim();
+    return { linha: i + 2, id: g('ID'), idSolic: g('ID Solicitação'), recurso: g('Recurso'), acesso: g('Acesso / sistema'),
+      chamado: g('Nº Chamado'), status: g('Status'), abertoEm: g('Aberto em'), concluidoEm: g('Concluído em'),
+      obs: g('Observação'), por: g('Registrado por'), atualizado: g('Atualizado em') };
+  }).filter(c => c.id);
+}
+
+function listarChamadosAcesso(idSolic) {
+  return chamadosDaAba_().filter(c => c.idSolic === String(idSolic)).map(c => { delete c.linha; return c; });
+}
+
+/** { aberto: n, total: n } por solicitação, para a lista. */
+function resumoChamadosAcesso_() {
+  const r = {};
+  chamadosDaAba_().forEach(c => {
+    const x = r[c.idSolic] = r[c.idSolic] || { total: 0, abertos: 0 };
+    x.total++; if (STATUS_CH_FECHADOS.indexOf(c.status) === -1) x.abertos++;
+  });
+  return r;
+}
+
+function salvarChamadoAcesso(d) {
+  const idSolic = String(d.idSolic || '').trim();
+  if (!idSolic) throw new Error('Salve a solicitação de acesso antes de registrar outros chamados.');
+  if (!String(d.acesso || '').trim()) throw new Error('Informe qual acesso / sistema o chamado pede.');
+  const abaAc = abaAcessos_();
+  const linhaSolic = linhaAcesso_(abaAc, idSolic);
+  if (!linhaSolic) throw new Error('Solicitação não encontrada.');
+  const recurso = abaAc.getRange(linhaSolic, C_AC['Recurso']).getValue();
+  const nCh = numeroChamado_(d.chamado);
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const aba = abaChamadosAcesso_();
+    const atual = d.id ? chamadosDaAba_().find(c => c.id === d.id) : null;
+    const id = atual ? atual.id : Utilities.getUuid().substring(0, 8);
+    let status = String(d.status || '').trim() || (atual ? atual.status : '');
+    if (!status) status = nCh ? 'Aberto' : 'A abrir';
+    if (nCh && status === 'A abrir') status = 'Aberto';
+    const linha = atual ? atual.linha : aba.getLastRow() + 1;
+    const val = c => aba.getRange(linha, C_CH[c]).getValue();
+    const abertoEm = atual ? (val('Aberto em') || (nCh ? new Date() : '')) : (nCh ? new Date() : '');
+    const concluidoEm = STATUS_CH_FECHADOS.indexOf(status) !== -1 ? (atual && val('Concluído em') ? val('Concluído em') : new Date()) : '';
+    aba.getRange(linha, 1, 1, COLS_CH.length).setValues([[id, idSolic, recurso, String(d.acesso).trim(),
+      nCh ? `=HYPERLINK("${CONFIG_AC.URL_TICKET}${nCh}"; "${nCh}")` : '', status, abertoEm, concluidoEm,
+      String(d.obs || '').trim(), atual ? atual.por : emailAtual_(), new Date()]]);
+    [C_CH['Aberto em'], C_CH['Concluído em']].forEach(c => aba.getRange(linha, c).setNumberFormat('dd/MM/yyyy'));
+    aba.getRange(linha, C_CH['Atualizado em']).setNumberFormat('dd/MM/yyyy HH:mm');
+  } finally { lock.releaseLock(); }
+  return listarChamadosAcesso(idSolic);
+}
+
+function alterarStatusChamadoAcesso(id, status) {
+  const c = chamadosDaAba_().find(x => x.id === id);
+  if (!c) throw new Error('Chamado não encontrado.');
+  return salvarChamadoAcesso({ id: id, idSolic: c.idSolic, acesso: c.acesso, chamado: c.chamado, status: status, obs: c.obs });
+}
+
+function removerChamadoAcesso(id) {
+  const c = chamadosDaAba_().find(x => x.id === id);
+  if (!c) return [];
+  abaChamadosAcesso_().deleteRow(c.linha);
+  return listarChamadosAcesso(c.idSolic);
 }
