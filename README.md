@@ -126,6 +126,14 @@ issue; Projeto Interno pelo código PSA), com aviso ⚠️ quando o período do 
 projeto liberado leva o Status Controle de *Aguardando/Solicitação aberta* para **Aprovado**. Na primeira vez, autorize o
 Gmail pelo menu **🦇 → 📬 Ler e-mails do PSA**. O código só **lê** e-mails com esse assunto.
 
+## Exclusão de agenda
+
+No Controle, cada Agenda tem o botão **🗑** (e há **🗑 Exclusão de agenda** no topo, pela chave). O formulário já vem com os
+dados da agenda (rascunho ou descrição da issue); o TL informa as **datas a excluir** (uma a uma ou um intervalo, só dias
+úteis; aviso ⚠️ para datas fora do período) e o **motivo**. A issue segue o layout da template **CIBKPRTH-7192** (prioridade
+da template), entra no épico **CIBKPRTH-4294**, é vinculada (*relates to*) à agenda original e aparece no Controle como
+**Exclusão de Agenda** (não soma valores), com a agenda de origem; a linha da agenda mostra 🗑 com as exclusões dela.
+
 ## Aviso de início da agenda
 
 No Controle, cada Agenda tem o botão **📧 Avisar início** (azul quando a agenda está Aprovada e ainda não foi avisada).

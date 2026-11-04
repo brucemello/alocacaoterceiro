@@ -114,7 +114,7 @@ function obterLinhasControle_() {
       statusControle: g('Status Controle'), obs: g('Observações'), atualizado: g('Última atualização'),
       ticket: g('Nº Ticket'), statusTicket: g('Status Ticket'), ultimaResposta: g('Última resposta'),
       linkTicket: (String(formsTk[i][0] || '').match(/HYPERLINK\("([^"]+)"/) || [])[1] || '',
-      time: g('Time'), avisoInicio: g('Aviso de início'), consultoria: g('Consultoria'), psaEmail: g('PSA (e-mail)')
+      time: g('Time'), avisoInicio: g('Aviso de início'), consultoria: g('Consultoria'), psaEmail: g('PSA (e-mail)'), agendaOrigem: g('Agenda de origem')
     };
   }).filter(l => l.issue);
   return base.linhas;
@@ -196,7 +196,7 @@ function definirAutoAtualizacaoPainel(ativar) {
 
 /** Limpa o cache das templates (útil se alguém mudar tipo/prioridade/épico no Jira). */
 function limparCacheTemplatesPainel() {
-  CacheService.getScriptCache().removeAll(['PI_META_TEMPLATE', 'AG_META_TEMPLATE']);
+  CacheService.getScriptCache().removeAll(['PI_META_TEMPLATE', 'AG_META_TEMPLATE', 'EX_META_TEMPLATE']);
   PropertiesService.getScriptProperties().deleteProperty('JIRA_CAMPO_EPIC_LINK');
   return true;
 }

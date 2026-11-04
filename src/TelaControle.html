@@ -55,6 +55,11 @@
     td select, td input { width:100%; padding:4px 5px; font-size:12px; }
     .tipo { display:inline-block; padding:2px 7px; border-radius:10px; font-size:11px; font-weight:bold; white-space:nowrap; }
     .tipo.pi { background:#deebff; color:#0747a6; } .tipo.ag { background:#eae6ff; color:#403294; } .tipo.ou { background:#f4f5f7; color:#42526e; }
+    .tipo.ex { background:#ffebe6; color:#bf2600; }
+    .ex-datas { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; min-height:24px; }
+    .ex-datas span { background:#ffebe6; color:#bf2600; border-radius:10px; padding:2px 8px; font-size:12px; }
+    .ex-datas span.fora { background:#fff7e6; color:#974f0c; }
+    .ex-datas span b { cursor:pointer; margin-left:5px; }
     tr.cancelado td { color:#97a0af; } tr.cancelado td .tipo { opacity:.6; }
     .salvo { outline:2px solid #57d9a3; }
     .vazio { padding:30px; text-align:center; color:var(--cinza); }
@@ -85,6 +90,7 @@
   <div class="acoes">
     <button class="novo" onclick="irPara('projeto')">➕ Novo Projeto Interno</button>
     <button class="novo" onclick="irPara('agenda')">➕ Nova Agenda</button>
+    <button class="secundario" onclick="excluirAgenda('')" title="Template CIBKPRTH-7192 · épico CIBKPRTH-4294">🗑 Exclusão de agenda</button>
     <span class="esp"></span>
     <button class="secundario" onclick="toggleImportar()">📥 Importar issue(s) existente(s)</button>
     <button class="primario" id="btnAtualizar" onclick="atualizarJira()">🔄 Atualizar do Jira</button>
@@ -319,16 +325,19 @@
       return;
     }
     $('corpo').innerHTML = linhas.map(l => {
-      const cls = l.tipo === 'Projeto Interno' ? 'pi' : l.tipo === 'Agenda' ? 'ag' : 'ou';
+      const cls = l.tipo === 'Projeto Interno' ? 'pi' : l.tipo === 'Agenda' ? 'ag' : l.tipo === 'Exclusão de Agenda' ? 'ex' : 'ou';
+      const exclusoes = l.tipo === 'Agenda' ? DADOS.linhas.filter(x => x.tipo === 'Exclusão de Agenda' && x.agendaOrigem === l.issue) : [];
       const url = `${DADOS.jiraUrl}/browse/${encodeURIComponent(l.issue)}`;
       const statusOpts = (opc.indexOf(l.statusControle) === -1 && l.statusControle ? [l.statusControle] : []).concat(opc)
         .map(s => `<option${s === l.statusControle ? ' selected' : ''}>${esc(s)}</option>`).join('');
       return `<tr class="${cancelada(l) ? 'cancelado' : ''}">
         <td style="white-space:nowrap">${l.tipo === 'Agenda' && !cancelada(l) ? `<button class="secundario mini" title="Editar esta agenda e atualizar a issue" onclick="editarAgenda('${esc(l.issue)}')">✏️</button>` : ''}
           ${l.tipo === 'Agenda' && !cancelada(l) ? `<button class="${l.statusControle === 'Aprovado' && !l.avisoInicio ? 'primario' : 'secundario'} mini" title="${l.avisoInicio ? 'Início já avisado em ' + esc(l.avisoInicio.split(' · ')[0]) + ' — reenviar' : 'Avisar o analista e a consultoria que a agenda foi criada'}" onclick="avisarInicio('${esc(l.issue)}')">📧</button>` : ''}
+          ${l.tipo === 'Agenda' && !cancelada(l) ? `<button class="secundario mini" title="Solicitar exclusão de datas desta agenda" onclick="excluirAgenda('${esc(l.issue)}')">🗑</button>` : ''}
           <button class="secundario mini" title="Ver os comentários do Jira e o que o agente leu" onclick="diagnosticar('${esc(l.issue)}')">🔍</button>
           ${l.tipo === 'Agenda' || l.tipo === 'Projeto Interno' ? `<button class="secundario mini" title="Clonar: nova solicitação aproveitando os dados (muda período, recursos, dias e valor)" onclick="clonar('${esc(l.issue)}','${l.tipo === 'Agenda' ? 'agenda' : 'projeto'}')">📄</button>` : ''}</td>
-        <td><span class="tipo ${cls}">${esc(l.tipo)}</span></td>
+        <td><span class="tipo ${cls}">${esc(l.tipo)}</span>${l.agendaOrigem ? `<div class="sub">da agenda <a href="${DADOS.jiraUrl}/browse/${esc(l.agendaOrigem)}">${esc(l.agendaOrigem)}</a></div>` : ''}
+          ${exclusoes.map(x => `<div class="sub" style="color:#bf2600">🗑 <a href="${DADOS.jiraUrl}/browse/${esc(x.issue)}">${esc(x.issue)}</a> · ${esc(x.statusJira || x.statusControle)}</div>`).join('')}</td>
         <td><a href="${url}">${esc(l.issue)}</a><div class="sub">${esc(l.solicitante)}</div></td>
         <td>${esc(l.abertaEm.split(' ')[0])}</td>
         <td style="min-width:260px">${esc(l.projeto)}<div class="sub">${esc(l.squad)}</div></td>
@@ -573,6 +582,106 @@
   function alertaAviso(msg) {
     const box = document.createElement('div'); box.className = 'av-aviso alerta'; box.textContent = '❌ ' + msg;
     $('diagCorpo').insertBefore(box, $('diagCorpo').firstChild);
+  }
+
+  // ---------- 🗑 Exclusão de agenda (template CIBKPRTH-7192 · épico CIBKPRTH-4294) ----------
+  let EX = null;
+  function excluirAgenda(key) {
+    fecharDiag();
+    document.body.insertAdjacentHTML('beforeend', `<div class="diag-fundo" id="diagFundo" onclick="if(event.target===this)fecharDiag()">
+      <div class="diag"><h3>🗑 Exclusão de agenda${key ? ' · ' + esc(key) : ''}</h3><div id="diagCorpo"></div></div></div>`);
+    if (!key) {
+      $('diagCorpo').innerHTML = `<p style="font-size:12px">Informe a agenda que terá datas excluídas:</p>
+        <div style="display:flex;gap:8px"><input id="exChave" placeholder="CIBKPRTH-15864" style="flex:1;padding:7px;border:1px solid #c1c7d0;border-radius:4px;text-transform:uppercase"
+          onkeydown="if(event.key==='Enter')excluirAgenda(this.value.trim())"><button class="primario" onclick="excluirAgenda($('exChave').value.trim())">Carregar agenda</button></div>`;
+      setTimeout(() => $('exChave').focus(), 50);
+      return;
+    }
+    $('diagCorpo').textContent = 'Lendo os dados da agenda…';
+    google.script.run.withSuccessHandler(d => { EX = { dados: d, datas: [] }; formExclusao(); })
+      .withFailureHandler(e => { $('diagCorpo').innerHTML = `<span style="color:#bf2600">❌ ${esc(e.message)}</span>`; })
+      .carregarAgendaParaExclusao(key);
+  }
+  function formExclusao() {
+    const d = EX.dados;
+    const campo = (id, rot, v, obrig) => `<label>${rot}${obrig ? ' *' : ''}</label><input id="ex_${id}" value="${esc(v)}"${obrig ? ' style="border-left:4px solid #4c9aff"' : ''}>`;
+    const br = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+    $('diagCorpo').innerHTML = `
+      <div class="sub">Agenda <a href="${DADOS.jiraUrl}/browse/${esc(d.agenda)}">${esc(d.agenda)}</a> · período ${esc(br(d.periodoDe))} a ${esc(br(d.periodoAte))}
+        · template ${esc(d.template)} · épico ${esc(d.epico)}</div>
+      ${d.exclusoesAnteriores.length ? `<div class="av-aviso alerta">Já existe exclusão para esta agenda: ${d.exclusoesAnteriores.map(x => esc(x.issue) + ' (' + esc(x.status || '—') + ')').join(', ')}</div>` : ''}
+      <div class="av-grid" style="grid-template-columns:170px 1fr">
+        ${campo('codigoRecurso', 'Código Recurso (PSA)', d.codigoRecurso, 1)}
+        ${campo('nomeRecurso', 'Nome do Recurso', d.nomeRecurso, 1)}
+        ${campo('codigoProjeto', 'Código do Projeto (PSA)', d.codigoProjeto, 1)}
+        ${campo('nomeProjeto', 'Nome do Projeto (PSA)', d.nomeProjeto, 1)}
+        ${campo('consultoria', 'Consultoria', d.consultoria)}
+        ${campo('squad', 'Squad', d.squad)}
+        ${campo('valorHora', 'Valor hora (R$)', d.valorHora, 1)}
+        ${campo('papel', 'Papel/Categoria (PSA)', d.papel, 1)}
+        <label>Datas a excluir *</label>
+        <div><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <input type="date" id="exDia" style="width:auto"> <button class="secundario mini" onclick="addDataEx()">➕ data</button>
+            <span class="sub">ou intervalo:</span> <input type="date" id="exDe" style="width:auto"> a <input type="date" id="exAte" style="width:auto">
+            <button class="secundario mini" onclick="addIntervaloEx()">➕ dias úteis do intervalo</button>
+            <button class="secundario mini" onclick="EX.datas=[];desenharDatasEx()">limpar</button></div>
+          <div class="ex-datas" id="exDatas"></div></div>
+        <label>Motivo da exclusão *</label><textarea id="ex_motivo" rows="2" placeholder="Ex.: férias do analista, saída antecipada, feriado local…"></textarea>
+      </div>
+      <div id="exPrevia"></div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="primario" id="exRevisar" onclick="revisarExclusao()">Revisar</button>
+        <button class="secundario" onclick="fecharDiag()">Cancelar</button>
+      </div>`;
+    desenharDatasEx();
+  }
+  const isoParaBR = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+  function addDataEx() { const v = $('exDia').value; if (v && EX.datas.indexOf(v) === -1) EX.datas.push(v); desenharDatasEx(); }
+  function addIntervaloEx() {
+    const a = $('exDe').value, b = $('exAte').value;
+    if (!a || !b) return;
+    for (let d = new Date(a + 'T12:00:00'); d <= new Date(b + 'T12:00:00'); d.setDate(d.getDate() + 1)) {
+      if (d.getDay() === 0 || d.getDay() === 6) continue;
+      const iso = d.toISOString().substring(0, 10);
+      if (EX.datas.indexOf(iso) === -1) EX.datas.push(iso);
+    }
+    desenharDatasEx();
+  }
+  function desenharDatasEx() {
+    EX.datas.sort();
+    const de = EX.dados.periodoDe, ate = EX.dados.periodoAte;
+    const fora = iso => (de && iso < de) || (ate && iso > ate);
+    $('exDatas').innerHTML = EX.datas.length ? EX.datas.map(iso => `<span class="${fora(iso) ? 'fora' : ''}" title="${fora(iso) ? 'fora do período da agenda' : ''}">${isoParaBR(iso)}${fora(iso) ? ' ⚠️' : ''}<b onclick="EX.datas.splice(EX.datas.indexOf('${iso}'),1);desenharDatasEx()">×</b></span>`).join('')
+      + `<span style="background:none;color:#42526e">${EX.datas.length} dia(s)</span>`
+      : '<span style="background:none;color:#6b778c">Nenhuma data adicionada.</span>';
+    if ($('exPrevia')) $('exPrevia').innerHTML = '';
+    if ($('exRevisar')) { $('exRevisar').textContent = 'Revisar'; $('exRevisar').onclick = revisarExclusao; }
+  }
+  function dadosExclusao() {
+    const g = id => ($('ex_' + id) ? $('ex_' + id).value.trim() : '');
+    return { agenda: EX.dados.agenda, projetoJira: EX.dados.projetoJira, horasDia: EX.dados.horasDia,
+      codigoRecurso: g('codigoRecurso'), nomeRecurso: g('nomeRecurso'), codigoProjeto: g('codigoProjeto').toUpperCase(),
+      nomeProjeto: g('nomeProjeto'), consultoria: g('consultoria'), squad: g('squad'), valorHora: g('valorHora'),
+      papel: g('papel'), motivo: g('motivo'), datasTexto: EX.datas.map(isoParaBR).join(', ') };
+  }
+  function revisarExclusao() {
+    google.script.run.withSuccessHandler(p => {
+      $('exPrevia').innerHTML = `<div class="av-aviso ok" style="margin-top:8px"><b>Título:</b> ${esc(p.titulo)}<br>
+        <b>Excluir:</b> ${esc(p.datas.join(', '))} (${p.datas.length} dia(s))<br>A issue sai com o layout da template 7192, prioridade da template, no épico CIBKPRTH-4294 e vinculada à agenda ${esc(EX.dados.agenda)}.</div>`;
+      $('exRevisar').textContent = '🗑 Confirmar e criar exclusão';
+      $('exRevisar').onclick = criarExclusao;
+    }).withFailureHandler(e => { $('exPrevia').innerHTML = `<div class="av-aviso alerta">❌ ${esc(e.message)}</div>`; })
+      .gerarPreviaExclusao(dadosExclusao());
+  }
+  function criarExclusao() {
+    $('exRevisar').disabled = true; $('exRevisar').textContent = 'Criando no Jira…';
+    google.script.run.withSuccessHandler(r => {
+      fecharDiag();
+      mostrarMsg(`🗑 Exclusão criada: <a href="${esc(r.url)}">${esc(r.key)}</a> · ${r.datas.length} dia(s) · ${r.status}`, 'ok');
+      carregar(true);
+    }).withFailureHandler(e => { $('exRevisar').disabled = false; $('exRevisar').textContent = '🗑 Confirmar e criar exclusão';
+      $('exPrevia').innerHTML = `<div class="av-aviso alerta">❌ ${esc(e.message)}</div>`; })
+      .criarIssueExclusao(dadosExclusao());
   }
 </script>
 </body>
